@@ -872,6 +872,10 @@ async def test_allow_within_limit():
 
 ### Task T16: 结果看板 + 历史页 + 设置页
 
+> ✅ **完成** — commit `b64f5d4`（2026-08-04，implementer: Boole；review: Russell ✅ Approved，但发现 2 个后端契约缺口）
+>
+> 🛠 **集成修复** — commits `69db24f`（AnalysisResult.files 携带 per-file diff）+ `da725eb`（成功分析持久化到历史 + meta.history_id）（subagent: Lovelace；Socrates 复核 ✅）；diff 高亮与历史/导出端到端可用
+
 **Files:**
 - Create: `frontend/src/pages/ResultPage.tsx`, `frontend/src/pages/HistoryPage.tsx`, `frontend/src/pages/SettingsPage.tsx`
 - Create: `frontend/src/components/SummaryCard.tsx`, `frontend/src/components/FindingsList.tsx`, `frontend/src/components/DiffViewer.tsx`, `frontend/src/components/ExportButton.tsx`
