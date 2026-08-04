@@ -36,3 +36,7 @@ Thumbs.db
 
 # ---- Misc ----
 *.tmp
+
+# ---- worktrees ----
+.worktrees/
+
