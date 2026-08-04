@@ -61,3 +61,8 @@
 - **实现**：LLMClient（OpenAI 兼容 + JSON schema 校验 + 修复重试 + 传输重试 + 日志脱敏）；commit `77f57fc`（implementer: Jason）。
 - **评审**：reviewer Nash → ✅ Approved；minor 入 ledger。
 - **WT-1 状态**：T1-T5 全部通过（58 tests green），进入最终全分支评审。
+
+### WT-1 完成并合并（PR #1 backend-core）
+- **技能**：subagent-driven-development + finishing-a-development-branch（用户已定每 worktree→PR，故走 Option 2：push + PR）。
+- **结果**：T1-T5 全部通过（66 tests），最终评审 clean；分支 `feat/backend-core` @ 15dcb66 已 push，PR #1 已创建。
+- **人工裁决汇总**：Python 3.11 目标、404→repo_not_found、T4 语言策略/返回 list/truncated 语义、最终评审 3 Important 修复。

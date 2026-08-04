@@ -33,6 +33,8 @@
 
 ## Worktree / PR 映射（每个大模块一个 worktree = 一个 PR）
 
+> ✅ **WT-1 (backend-core) 完成**：T1-T5 全部通过（66 tests），最终评审 clean；PR #1 = feat/backend-core（commit 15dcb66）。
+
 | Worktree | 分支 | PR | 内容（任务） | 依赖 |
 |---|---|---|---|---|
 | WT-1 | `feat/backend-core` | #1 | T1-T5：脚手架/模型/数据获取/上下文/LLM 客户端 | main |
