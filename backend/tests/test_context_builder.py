@@ -113,6 +113,26 @@ def test_find_enclosing_function_multiline_signature_stops_before_next():
     assert start == 1 and end == 6
 
 
+def test_find_enclosing_function_single_line_suite_does_not_swallow_next():
+    # `def foo(): return 1` is a single-line suite: the header ends at the def
+    # line, so the enclosing window must NOT extend into the next def.
+    content = "def foo(): return 1\n\ndef bar():\n    return 2\n"
+    start, end = find_enclosing_function(content, 1, "python")
+    assert start == 1 and end == 1
+
+
+def test_find_enclosing_function_single_line_suite_next_def_still_found():
+    content = "def foo(): return 1\n\ndef bar():\n    return 2\n"
+    start, end = find_enclosing_function(content, 3, "python")
+    assert start == 3 and end == 4
+
+
+def test_find_enclosing_function_class_single_line_suite():
+    content = "class A: pass\n\nclass B:\n    pass\n"
+    start, end = find_enclosing_function(content, 1, "python")
+    assert start == 1 and end == 1
+
+
 def test_estimate_tokens():
     assert estimate_tokens("abcd") == 1
     assert estimate_tokens("") == 0

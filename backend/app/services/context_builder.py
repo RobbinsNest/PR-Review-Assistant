@@ -106,8 +106,12 @@ def _find_by_indentation(lines: list[str], line: int) -> tuple[int, int] | None:
     # treat every line up to the header terminator as part of the header, so a
     # closing-paren ``):`` at column 0 does not prematurely end the body scan.
     header_end = def_start
-    while header_end < len(lines) and not _header_terminates(lines[header_end]):
-        header_end += 1
+    # A single-line suite (``def foo(): return 1``) terminates the header at the
+    # def line itself; only walk continuation lines when the def/class line opens
+    # a multi-line signature (its code part ends with an unclosed ``(``).
+    if re.sub(r"\s+#.*$", "", lines[def_start]).rstrip().endswith("("):
+        while header_end < len(lines) and not _header_terminates(lines[header_end]):
+            header_end += 1
     end = header_end
     for idx in range(header_end + 1, len(lines)):
         current = lines[idx]
