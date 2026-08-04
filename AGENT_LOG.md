@@ -118,3 +118,9 @@
 - **实现**：HomePage + ProgressPage（SSE）commit 69afe4d（Hypatia）；fix 3eb55d9（Dirac）。
 - **评审**：Huygens 1 Important（stage 徽章逻辑倒置：完成阶段标 pending、未来标 done）→ 修复 → Maxwell 复核 ✅。
 - **教训**：进度页徽章状态是最容易被写反的 UI 逻辑；补组件测试后此类 bug 不会再溜过。
+
+### T16 完成（WT-4 frontend）
+- **技能**：subagent-driven-development。
+- **实现**：结果看板/历史/设置 commit b64f5d4（Boole，21 tests）。
+- **评审**：Russell ✅ Approved（前端正确），但发现 2 个**后端契约缺口**（Important）：(A) AnalysisResult 无 per-file diff → diff 高亮空转；(B) 生产流程从不调用 HistoryStore.save → 历史/导出永远为空。→ 集成 fix wave（Lovelace）关闭两个 seam（result.files + meta.history_id）。
+- **教训**：前端按契约实现但后端 seam 未接通——"每文件 diff 高亮"与"历史+导出"都是核心 US，缺了它前端白做；跨层契约必须在 PLAN 里显式列出"谁填 result.files / meta.history_id"。
