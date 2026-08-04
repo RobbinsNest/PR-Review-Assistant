@@ -54,3 +54,30 @@
 
 ## 4. 待补记录
 - [ ] 各 task 实现过程的 subagent 记录与人工干预（随实现推进持续更新）。
+
+## 4. 实现阶段过程记录（subagent-driven-development）
+
+### 4.1 Worktree / PR 映射（每个大模块一个 worktree = 一个 PR）
+| Worktree | 分支 | PR | Tasks | 状态 |
+|---|---|---|---|---|
+| WT-1 | feat/backend-core | #1 | T1-T5 | ✅ merged |
+| WT-2 | feat/analysis-engine | #2 | T6-T9 | ✅ merged |
+| WT-3 | feat/history-settings | #3 | T10-T13 | ✅ merged |
+| WT-4 | feat/frontend | #4 | T14-T16 + 集成修复 | ✅ merged |
+| WT-5 | feat/deploy-ci | #5 | T17 | 进行中 |
+
+### 4.2 两阶段评审与 fix round 统计
+- 每个 task：implementer（fresh subagent，TDD 红→绿→提交）→ reviewer（spec 合规 + 代码质量）→ 需要时 fix round（≤5）。
+- 抓出的代表性缺陷：T4 函数边界启发式（Go/Rust 缺失、多行签名、单行套件回归，3 轮修复）；T8 stats 并发竞态、registry 无界增长；T13 total 分页语义；T15 进度徽章逻辑倒置；T16 两个后端契约缺口（diff 数据源、历史持久化 seam）；WT-4 最终评审（导航壳、示例 PR 单一来源、历史分页）。
+- **关键教训**：跨 worktree 契约（谁填 result.files / meta.history_id / example_pr）未在 PLAN 显式归属时，评审必抓；"先 spec 合规再代码质量"的评审顺序有效阻止了功能缺口的合并。
+
+### 4.3 冷启动验证对 SPEC/PLAN 的贡献
+- 已在 §3 记录：ERROR_HTTP 表就近定义、红态描述修正、pytest 临时目录、asyncio_mode、Makefile 命令、python-multipart 移除。
+
+### 4.4 人工干预清单
+- Python 版本策略（3.11 目标，本地 3.14 兼容）
+- 404→repo_not_found 裁决（plan 既定，pull_not_found 保留）
+- T4 语言策略 / build_analysis_unit 返回 list / truncated 语义裁决
+- T7 测试 fixture 顺序修正裁决
+- PR #3 合并冲突（main.py 两分支同改）用 update-branch + 人工调和 + 测试修复解决
+- 示例 PR 钉选为本仓库 PR #1（公开）
