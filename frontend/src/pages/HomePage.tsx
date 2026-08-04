@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { analyze, ApiError } from "../api/client";
 
@@ -43,11 +43,16 @@ export default function HomePage() {
   const [githubToken, setGithubToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Synchronous guard against double-submit races: set before any async work
+  // (state updates are async, so `submitting` alone can be stale) and reset
+  // on error/finish. The disabled buttons remain as the visible feedback.
+  const submittingRef = useRef(false);
 
   const startAnalysis = async (url: string, token: string) => {
-    if (submitting) {
+    if (submittingRef.current) {
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -55,7 +60,9 @@ export default function HomePage() {
       navigate(`/progress/${task_id}`);
     } catch (err) {
       setError(startErrorHint(err));
+    } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   };
 

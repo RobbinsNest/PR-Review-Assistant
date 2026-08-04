@@ -12,7 +12,7 @@ function stageState(stage: string | null, index: number): StageState {
     return "pending";
   }
   const current = STAGES.indexOf(stage);
-  if (current === -1 || index < current) {
+  if (current === -1 || index > current) {
     return "pending";
   }
   return index === current ? "active" : "done";
@@ -42,8 +42,6 @@ export default function ProgressPage() {
   const [total, setTotal] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
-  // Bumping the attempt key re-runs the subscription effect (retry).
-  const [attempt, setAttempt] = useState(0);
 
   const startedAtRef = useRef(0);
   const timerRef = useRef<number | undefined>(undefined);
@@ -79,9 +77,7 @@ export default function ProgressPage() {
         timerRef.current = undefined;
       }
     };
-  }, [taskId, attempt, navigate]);
-
-  const handleRetry = () => setAttempt((n) => n + 1);
+  }, [taskId, navigate]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[1120px] flex-col items-center justify-center px-6 py-10">
@@ -99,8 +95,8 @@ export default function ProgressPage() {
             >
               <p className="font-medium">{error.message}</p>
               <p className="mt-1 font-mono text-xs text-ink-muted">code: {error.code}</p>
-              <button type="button" onClick={handleRetry} className="mt-2 underline">
-                重试
+              <button type="button" onClick={() => navigate("/")} className="mt-2 underline">
+                重新开始
               </button>
             </div>
           ) : (
