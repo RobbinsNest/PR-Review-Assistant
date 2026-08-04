@@ -81,3 +81,54 @@ def test_cors_wildcard_disables_credentials(monkeypatch, tmp_path):
         assert r.status_code == 200
         assert r.headers.get("access-control-allow-origin") == "*"
         assert "access-control-allow-credentials" not in r.headers
+
+def test_static_spa_served_with_fallback_when_dist_exists(tmp_path, monkeypatch):
+    """When STATIC_DIR points at a built SPA, "/" serves index.html and
+    client-side routes fall back to it, while /api and /healthz are not
+    shadowed by the catch-all mount.
+    """
+    static = tmp_path / "static"
+    (static / "assets").mkdir(parents=True)
+    (static / "index.html").write_text("<html>PRRA SPA</html>", encoding="utf-8")
+    (static / "assets" / "app.js").write_text("console.log('ok')", encoding="utf-8")
+    monkeypatch.setenv("STATIC_DIR", str(static))
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "nested" / "analyses.db"))
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        # API and health routes are served by their routers, not the SPA.
+        assert client.get("/healthz").status_code == 200
+        assert client.get("/api/settings/llm").status_code == 200
+
+        # Root serves index.html.
+        root = client.get("/")
+        assert root.status_code == 200
+        assert "PRRA SPA" in root.text
+
+        # A client-side route (e.g. /history) falls back to index.html.
+        spa_route = client.get("/history")
+        assert spa_route.status_code == 200
+        assert "PRRA SPA" in spa_route.text
+
+        # Real static assets are still served.
+        assert client.get("/assets/app.js").status_code == 200
+
+        # Unknown API paths keep returning JSON 404 (no SPA shell).
+        unknown_api = client.get("/api/definitely-not-a-route")
+        assert unknown_api.status_code == 404
+
+
+def test_no_static_mount_when_dist_missing(tmp_path, monkeypatch):
+    """Without a built SPA the app still starts and serves the API only."""
+    monkeypatch.setenv("STATIC_DIR", str(tmp_path / "does-not-exist"))
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "nested" / "analyses.db"))
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        assert client.get("/healthz").status_code == 200
+        assert client.get("/api/settings/llm").status_code == 200
+        assert client.get("/").status_code == 404
