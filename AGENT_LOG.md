@@ -88,3 +88,10 @@
 - **实现**：T8 stage3+编排器 commit 6f9d64c（Godel，100 tests）；T12 限流+装配 commit 9f9386f（Hume，106 tests，含 aclose/close/test_cli/日志 grep-assert）。
 - **评审**：T8 → Avicenna ✅；T12 → James ✅（minor 折入 T9/T13）。
 - **注意**：WT-2 与 WT-3 都在改 backend/app/main.py —— 已指示 T9/T13 各自只加自己的 router 并标注 seam，合并时人工调和。
+
+### T9/T13 完成 → WT-2/WT-3 全部完成
+- **技能**：subagent-driven-development。
+- **实现**：T9 任务管理器+SSE+API commit fa20cfc（Poincare，121 tests）；T13 history API commit ad61075 + fix 5a962d9（McClintock/Boyle，115 tests）。
+- **评审**：T9 → Carson ✅（minor：BOM 待清理）；T13 → Turing 1 Important（total 真实计数）→ Boyle 修复 → Chandrasekhar 复核 ✅。
+- **状态**：WT-2（T6-T9）与 WT-3（T10-T13）全部完成，进入最终全分支评审。
+- **教训**：`total` 分页语义是前端契约关键点，评审抓出"页面大小冒充总数"的缺陷——此类跨层契约要在 SPEC/PLAN 里写死。

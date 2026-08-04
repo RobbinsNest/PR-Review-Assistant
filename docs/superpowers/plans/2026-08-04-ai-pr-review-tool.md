@@ -575,6 +575,8 @@ async def test_run_analysis_full_pipeline():
 
 ### Task T9: 任务管理器 + analyze/tasks API（含 SSE）
 
+> ✅ **完成** — commit `fa20cfc`（2026-08-04，implementer: Poincare；review: Carson ✅ Approved；含 T8 评审折入：stats 重置/空 findings 短路/no_analyzable_files）
+
 **Files:**
 - Create: `backend/app/services/task_manager.py`
 - Create: `backend/app/api/analyze.py`
@@ -792,6 +794,8 @@ async def test_allow_within_limit():
 ---
 
 ### Task T13: history/settings API 路由（供前端使用）
+
+> ✅ **完成** — commits `ad61075`+`5a962d9`（2026-08-04，implementer: McClintock，fix: Boyle；review: Turing 1 Important（total 真实计数）→ 修复 → Chandrasekhar 复核通过）
 
 **Files:**
 - Create: `backend/app/api/history.py`
