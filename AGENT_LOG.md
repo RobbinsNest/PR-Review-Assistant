@@ -55,3 +55,9 @@
 - **评审**：reviewer Ptolemy → 2 Important（Go/Rust func/fn 窗口缺失、Python 多行签名窗口丢失）→ 修复；re-review Wegener 发现 1 个新回归（单行套件吞掉下一函数）→ fix2；Goodall 复核通过。
 - **裁决**：plan 修正——语言策略（python 缩进、{} 括号配对、未知±20）、build_analysis_unit 返回 list、truncated 语义。
 - **教训**：启发式函数边界是易错区，两次评审共抓出 3 个真实缺陷；tree-sitter 精确解析列为扩展方向的理由更充分了。
+
+### T5 完成 + WT-1 全部完成（backend-core）
+- **技能**：subagent-driven-development。
+- **实现**：LLMClient（OpenAI 兼容 + JSON schema 校验 + 修复重试 + 传输重试 + 日志脱敏）；commit `77f57fc`（implementer: Jason）。
+- **评审**：reviewer Nash → ✅ Approved；minor 入 ledger。
+- **WT-1 状态**：T1-T5 全部通过（58 tests green），进入最终全分支评审。

@@ -341,6 +341,8 @@ def test_build_analysis_unit_includes_context():
 
 ### Task T5: LLM 客户端（OpenAI 兼容 + JSON schema 校验 + 重试）
 
+> ✅ **完成** — commit `77f57fc`（2026-08-04，implementer: Jason；review: Nash ✅ Approved，0 Critical/Important）
+
 **Files:**
 - Create: `backend/app/services/llm_client.py`
 - Test: `backend/tests/test_llm_client.py`
