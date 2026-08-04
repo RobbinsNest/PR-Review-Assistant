@@ -299,8 +299,8 @@ async def test_unauth_rate_limit_message():
 - Consumes: `ChangedFile`（T2）
 - Produces:
   - `extract_hunk_ranges(diff: str) -> list[tuple[int, int]]`：解析 unified diff 中每个 hunk 的新文件行区间（`@@ -a,b +c,d @@` → `(c, c+d-1)`；无上下文行时按首行）。
-  - `find_enclosing_function(content: str, line: int, language: str = "python") -> tuple[int, int]`：返回含 `line`（1-based）的最小函数/类定义区间 `(start, end)`；启发式：从 `line` 向上找 `def/class/function` 关键字行，向下用缩进/花括号配对找结束；找不到返回 `(line, line)`。
-  - `build_analysis_unit(file: ChangedFile, budget_in: int = 8000) -> AnalysisUnit`：`AnalysisUnit = TypedDict { file_path, diff, context: str, truncated: bool }`；上下文 = 所有 hunk 所在函数的并集文本，超 budget 时按 hunk 分片返回多个 unit（每片 ≤ budget）。
+  - `find_enclosing_function(content: str, line: int, language: str = "python") -> tuple[int, int]`：返回含 `line`（1-based）的最小函数/类定义区间 `(start, end)`。策略（**裁决明确，T4 评审修正**）：从 `line` 向上找函数/类定义行，关键字覆盖 `def|class|function|func|fn`（python/go/rust/js/ts 均支持）；向下找结束——**python 用缩进法**，`{`/`}` 语言（js/ts/go/rust 等）用**括号配对**，未知语言 fallback ±20 行；找不到返回 `(line, line)`。注意 python 多行签名（`def foo(\n a,\n b\n):`）须把签名延续行视为头部，直到 `:` 结尾行后再判断函数体缩进。
+  - `build_analysis_unit(file: ChangedFile, budget_in: int = 8000) -> list[AnalysisUnit]`：返回 unit **列表**（`AnalysisUnit = TypedDict { file_path, diff, context: str, truncated: bool }`；签名修正，T4 评审裁决）；上下文 = 所有 hunk 所在函数的并集文本（带行号前缀），超 budget 时按 hunk 分片返回多个 unit（每片 ≤ budget，`truncated=True` 表示文件超预算）。
   - `estimate_tokens(text: str) -> int`：粗略估算（`len(text) // 4`）。
 
 - [ ] **Step 1: 写失败测试 `test_context_builder.py`**
