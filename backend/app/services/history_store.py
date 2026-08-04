@@ -127,6 +127,14 @@ class HistoryStore:
         rows = await cursor.fetchall()
         return [self._row_to_dict(row) for row in rows]
 
+    async def count(self) -> int:
+        """Return the total number of stored analyses."""
+        if self._conn is None:
+            raise RuntimeError(_NOT_INITIALIZED)
+        cursor = await self._conn.execute("SELECT COUNT(*) FROM analyses")
+        row = await cursor.fetchone()
+        return int(row[0])
+
     async def get(self, id: str) -> dict | None:
         """Return a single analysis with JSON fields decoded, or ``None``."""
         if self._conn is None:

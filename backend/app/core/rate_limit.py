@@ -33,6 +33,10 @@ class RateLimiter:
         elapsed the key is dropped from ``_timestamps`` and the current call
         starts a fresh window, so empty per-key deques never linger.
         """
+        if self._limit <= 0:
+            # Misconfigured/disabled limiter: reject every request without
+            # recording any per-key state.
+            return False
         now = time.monotonic()
         async with self._lock:
             window = self._timestamps.get(key)

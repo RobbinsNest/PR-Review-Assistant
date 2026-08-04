@@ -27,3 +27,20 @@ async def test_export_markdown(tmp_path):
     aid = await store.save(pr, res, {}, 1)
     md = await store.export_markdown(aid)
     assert "# PR 评审报告" in md and "Fix" in md
+@pytest.mark.asyncio
+
+
+async def test_count(tmp_path):
+    """count() reports the true number of stored records, not a page size."""
+    store = HistoryStore(str(tmp_path / "a.db"))
+    await store.init()
+    assert await store.count() == 0
+    for number in (1, 2, 3):
+        pr = PRInfo(owner="o", repo="r", number=number, title=f"t{number}", html_url="u", base_sha="a", head_sha="b")
+        res = AnalysisResult(summary=AnalysisSummary(title=f"t{number}", overview="o", key_points=[], risk_highlights=[]), findings=[], meta={})
+        await store.save(pr, res, {}, number)
+    assert await store.count() == 3
+    rows = await store.list()
+    assert len(rows) == 3
+    await store.delete(rows[0]["id"])
+    assert await store.count() == 2

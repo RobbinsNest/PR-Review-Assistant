@@ -82,3 +82,13 @@ def test_rate_limit_dependency_returns_429(tmp_path, monkeypatch):
         limited = client.post("/api/settings/llm/test")
         assert limited.status_code == 429
         assert limited.json()["error"]["code"] == "rate_limited"
+@pytest.mark.asyncio
+
+
+async def test_zero_or_negative_limit_rejects_all():
+    """A non-positive limit denies every request and records no state."""
+    for limit in (0, -1):
+        rl = RateLimiter(limit=limit)
+        assert await rl.allow("ip-a") is False
+        assert await rl.allow("ip-b") is False
+        assert rl._timestamps == {}

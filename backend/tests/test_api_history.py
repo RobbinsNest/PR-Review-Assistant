@@ -120,8 +120,12 @@ async def test_list_pagination(api_client):
 
     first = (await api_client.get("/api/history", params={"limit": 2, "offset": 0})).json()
     assert len(first["items"]) == 2
+    assert first["total"] == 3  # true record count, not page size
     rest = (await api_client.get("/api/history", params={"limit": 2, "offset": 2})).json()
     assert len(rest["items"]) == 1
+    assert rest["total"] == 3
+    items = first["items"] + rest["items"]
+    assert [item["pr_number"] for item in items] == [3, 2, 1]  # newest first
     seen = {item["pr_number"] for item in first["items"]} | {
         item["pr_number"] for item in rest["items"]
     }
@@ -141,3 +145,69 @@ async def test_unknown_id_returns_404(api_client):
     r = await api_client.delete("/api/history/missing-id")
     assert r.status_code == 404
     assert r.json()["error"]["code"] == "not_found"
+
+
+async def test_list_total_is_record_count_not_page_size(api_client):
+    """total reports all records even when the page returns only a slice."""
+    from app.main import app
+
+    store = app.state.history_store
+    for number in range(1, 4):
+        pr = PRInfo(
+            owner="acme",
+            repo="widgets",
+            number=number,
+            title=f"PR {number}",
+            html_url=f"https://github.com/acme/widgets/pull/{number}",
+            base_sha="a",
+            head_sha="b",
+        )
+        await store.save(pr, _sample_result(f"PR {number}", "overview"), {}, number)
+
+    first = (
+        await api_client.get("/api/history", params={"limit": 2, "offset": 0})
+    ).json()
+    assert len(first["items"]) == 2
+    assert first["total"] == 3
+
+    second = (
+        await api_client.get("/api/history", params={"limit": 2, "offset": 2})
+    ).json()
+    assert len(second["items"]) == 1
+    assert second["total"] == 3
+
+
+
+async def test_list_clamps_limit_and_offset(api_client):
+    """Out-of-range limit/offset are clamped: limit in [1, 100], offset >= 0."""
+    from app.main import app
+
+    store = app.state.history_store
+    for number in range(1, 106):
+        pr = PRInfo(
+            owner="acme",
+            repo="widgets",
+            number=number,
+            title=f"PR {number}",
+            html_url=f"https://github.com/acme/widgets/pull/{number}",
+            base_sha="a",
+            head_sha="b",
+        )
+        await store.save(pr, _sample_result(f"PR {number}", "overview"), {}, number)
+
+    # limit=0 clamps up to 1 -> exactly one row, total still the true count.
+    r = await api_client.get("/api/history", params={"limit": 0})
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["items"]) == 1
+    assert body["total"] == 105
+
+    # limit=1000 clamps down to 100 -> a single 100-row page, not all 105.
+    r = await api_client.get("/api/history", params={"limit": 1000})
+    assert r.status_code == 200
+    assert len(r.json()["items"]) == 100
+
+    # offset=-5 clamps to 0 -> the first page is returned unchanged.
+    r = await api_client.get("/api/history", params={"limit": 2, "offset": -5})
+    assert r.status_code == 200
+    assert len(r.json()["items"]) == 2

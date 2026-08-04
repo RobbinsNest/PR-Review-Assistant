@@ -29,14 +29,17 @@ def _store(request: Request):
 
 @router.get("")
 async def list_history(request: Request, limit: int = 50, offset: int = 0) -> dict:
-    """Return one page of analyses (newest first).
+    """Return one page of analyses (newest first) with the true record count.
 
-    ``total`` reports how many items this page holds; the store's ``list``
-    returns only the requested slice, so the shape stays ``{items, total}``
-    for the frontend without a separate count query.
+    ``limit`` is clamped to the inclusive range [1, 100] (default 50) and
+    ``offset`` to ``>= 0``; ``total`` is the full number of stored records
+    (``HistoryStore.count()``), not the size of the returned page.
     """
-    items = await _store(request).list(limit=limit, offset=offset)
-    return {"items": items, "total": len(items)}
+    store = _store(request)
+    limit = max(1, min(100, limit))
+    offset = max(0, offset)
+    items = await store.list(limit=limit, offset=offset)
+    return {"items": items, "total": await store.count()}
 
 
 @router.get("/{history_id}")
