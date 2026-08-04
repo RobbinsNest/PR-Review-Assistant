@@ -702,6 +702,8 @@ async def test_export_markdown(tmp_path):
 
 ### Task T11: 凭据与设置（keyring + .env + CLI + settings API）
 
+> ✅ **完成** — commit `c375174`（2026-08-04，implementer: Euclid；review: Mill ✅ Approved）
+
 **Files:**
 - Create: `backend/app/services/credentials.py`, `backend/app/cli.py`
 - Create: `backend/app/api/settings.py`

@@ -72,3 +72,8 @@
 - **实现**：T6 stage1 候选生成 commit d625291（Einstein）；T10 SQLite 历史存储 commit 01a3d7d（Popper）。
 - **评审**：T6 → Banach ✅ Approved（minor：真实变更行判定/文件名校验/病态行号收敛 → 已折入 T7 指令）；T10 → Confucius ✅ Approved（T13 需 mkdir data 目录 + 关闭连接）。
 - **环境修复**：共享 venv 基线解析到沙箱禁用的 AppData Python 3.11 → 重建 `.venv-shared2`（基线 C:\Python314，沙箱可执行）。
+
+### T7/T11 完成（WT-2/WT-3 并行）
+- **技能**：subagent-driven-development。
+- **实现**：T7 stage2 校验 commit 6857781（Newton，含 T6 review 折入：真实变更行判定/文件名校验/病态行号收敛；修正 brief 草案测试顺序矛盾）；T11 凭据+设置 commit c375174（Euclid）。
+- **评审**：T11 → Mill ✅ Approved（T12 需加 test_cli.py）；T7 评审进行中。
