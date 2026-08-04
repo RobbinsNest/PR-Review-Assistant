@@ -35,6 +35,10 @@
 
 > ✅ **WT-1 (backend-core) 完成**：T1-T5 全部通过（66 tests），最终评审 clean；PR #1 = feat/backend-core（commit 15dcb66）。
 
+> ✅ **WT-2 (analysis-engine) 完成**：T6-T9 全部通过（126 tests），最终评审 fix 后 clean；PR #2 = feat/analysis-engine（head 0ab4c4c）。
+
+> ✅ **WT-3 (history-settings) 完成**：T10-T13 全部通过（132 tests），最终评审 fix 后 clean；PR #3 = feat/history-settings（head 3163f8e）。
+
 | Worktree | 分支 | PR | 内容（任务） | 依赖 |
 |---|---|---|---|---|
 | WT-1 | `feat/backend-core` | #1 | T1-T5：脚手架/模型/数据获取/上下文/LLM 客户端 | main |
