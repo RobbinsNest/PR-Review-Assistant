@@ -73,39 +73,50 @@ export interface SettingsTestResult {
   error: string | null;
 }
 
-/** Error carrying the HTTP status of a failed backend response. */
+/** Error carrying the HTTP status and (when present) backend error code. */
 export class ApiError extends Error {
   readonly status: number;
+  readonly code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
-async function errorMessage(response: Response): Promise<string> {
+interface ErrorPayload {
+  message: string;
+  code?: string;
+}
+
+async function errorMessage(response: Response): Promise<ErrorPayload> {
   try {
     const body = (await response.json()) as {
-      error?: { message?: string };
+      error?: { code?: unknown; message?: unknown };
       detail?: unknown;
     };
     if (typeof body.error?.message === "string" && body.error.message) {
-      return body.error.message;
+      return {
+        message: body.error.message,
+        code: typeof body.error.code === "string" ? body.error.code : undefined,
+      };
     }
     if (typeof body.detail === "string") {
-      return body.detail;
+      return { message: body.detail };
     }
   } catch {
     // Non-JSON error body; fall back to the status line.
   }
-  return `HTTP ${response.status}`;
+  return { message: `HTTP ${response.status}` };
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
-    throw new ApiError(response.status, await errorMessage(response));
+    const { message, code } = await errorMessage(response);
+    throw new ApiError(response.status, message, code);
   }
   if (response.status === 204) {
     return undefined as T;

@@ -1,10 +1,11 @@
 import { createBrowserRouter } from "react-router-dom";
 import HomePage from "../pages/HomePage";
+import ProgressPage from "../pages/ProgressPage";
 
 /**
  * Route table for the SPA.
  *
- * - "/"                    -> HomePage (real skeleton; full form lands in T15)
+ * - "/"                    -> HomePage (PR form; implemented in T15)
  * - "/progress/:taskId"    -> analysis progress + SSE (T15)
  * - "/result/:taskId"      -> result dashboard (T16)
  * - "/history"             -> stored analyses (T16)
@@ -24,7 +25,7 @@ function PlaceholderPage({ title }: { title: string }) {
 
 export const router = createBrowserRouter([
   { path: "/", element: <HomePage /> },
-  { path: "/progress/:taskId", element: <PlaceholderPage title="分析进度" /> },
+  { path: "/progress/:taskId", element: <ProgressPage /> },
   { path: "/result/:taskId", element: <PlaceholderPage title="评审结果" /> },
   { path: "/history", element: <PlaceholderPage title="历史记录" /> },
   { path: "/settings", element: <PlaceholderPage title="设置" /> },

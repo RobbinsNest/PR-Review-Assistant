@@ -77,6 +77,13 @@ export function subscribeTask(taskId: string, handlers: SSEHandlers): () => void
     let state: TaskState | null = null;
     try {
       const response = await fetch(taskUrl(taskId));
+      if (response.status === 404) {
+        // Unknown/evicted task: the stream can never resume. Treat it as a
+        // terminal error instead of reconnecting forever.
+        handlers.onError?.("not_found", "task not found");
+        stop();
+        return;
+      }
       if (response.ok) {
         state = (await response.json()) as TaskState;
       }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { analyze } from "../api/client";
+import { analyze, ApiError } from "../api/client";
 
 describe("api client - analyze()", () => {
   afterEach(() => {
@@ -42,5 +42,23 @@ describe("api client - analyze()", () => {
     const body = JSON.parse(init.body as string);
     expect(body).toEqual({ pr_url: "https://github.com/owner/repo/pull/7" });
     expect(body).not.toHaveProperty("github_token");
+  });
+
+  it("throws ApiError carrying the backend error code and message", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 413,
+      json: async () => ({
+        error: { code: "analysis_too_large", message: "PR exceeds size limit" },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const error = await analyze("https://github.com/owner/repo/pull/1").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(413);
+    expect((error as ApiError).code).toBe("analysis_too_large");
+    expect((error as ApiError).message).toBe("PR exceeds size limit");
   });
 });
