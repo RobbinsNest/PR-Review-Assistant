@@ -40,3 +40,7 @@ Thumbs.db
 # ---- worktrees ----
 .worktrees/
 
+
+# ---- shared venv ----
+.venv-shared/
+
