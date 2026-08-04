@@ -412,6 +412,8 @@ async def test_chat_json_fails_after_retries():
 
 ### Task T6: 分析引擎 Stage 1 生成（文件级并行候选发现）
 
+> ✅ **完成** — commit `d625291`（2026-08-04，implementer: Einstein；review: Banach ✅ Approved）
+
 **Files:**
 - Create: `backend/app/services/analysis_engine.py`
 - Test: `backend/tests/test_analysis_engine.py`
@@ -637,6 +639,8 @@ async def test_task_events_emitted():
 ---
 
 ### Task T10: 历史存储（SQLite CRUD + Markdown 导出）
+
+> ✅ **完成** — commit `01a3d7d`（2026-08-04，implementer: Popper；review: Confucius ✅ Approved）
 
 **Files:**
 - Create: `backend/app/services/history_store.py`

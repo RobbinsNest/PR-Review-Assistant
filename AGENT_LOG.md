@@ -66,3 +66,9 @@
 - **技能**：subagent-driven-development + finishing-a-development-branch（用户已定每 worktree→PR，故走 Option 2：push + PR）。
 - **结果**：T1-T5 全部通过（66 tests），最终评审 clean；分支 `feat/backend-core` @ 15dcb66 已 push，PR #1 已创建。
 - **人工裁决汇总**：Python 3.11 目标、404→repo_not_found、T4 语言策略/返回 list/truncated 语义、最终评审 3 Important 修复。
+
+### T6/T10 完成（WT-2/WT-3 并行）
+- **技能**：subagent-driven-development（两个 worktree 并行）。
+- **实现**：T6 stage1 候选生成 commit d625291（Einstein）；T10 SQLite 历史存储 commit 01a3d7d（Popper）。
+- **评审**：T6 → Banach ✅ Approved（minor：真实变更行判定/文件名校验/病态行号收敛 → 已折入 T7 指令）；T10 → Confucius ✅ Approved（T13 需 mkdir data 目录 + 关闭连接）。
+- **环境修复**：共享 venv 基线解析到沙箱禁用的 AppData Python 3.11 → 重建 `.venv-shared2`（基线 C:\Python314，沙箱可执行）。
