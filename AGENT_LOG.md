@@ -95,3 +95,9 @@
 - **评审**：T9 → Carson ✅（minor：BOM 待清理）；T13 → Turing 1 Important（total 真实计数）→ Boyle 修复 → Chandrasekhar 复核 ✅。
 - **状态**：WT-2（T6-T9）与 WT-3（T10-T13）全部完成，进入最终全分支评审。
 - **教训**：`total` 分页语义是前端契约关键点，评审抓出"页面大小冒充总数"的缺陷——此类跨层契约要在 SPEC/PLAN 里写死。
+
+### WT-2/WT-3 最终全分支评审（PR #2/#3）
+- **技能**：subagent-driven-development 最终评审 + fix wave。
+- **WT-2**（analysis-engine）reviewer Noether：**With fixes** — 2 Important（共享 stats 并发竞态、registry/队列无界增长）+ minor（BOM、repair 消息编码待验）→ fix wave（Averroes）。
+- **WT-3**（history-settings）reviewer Kierkegaard：**With fixes** — 2 Important（凭据未接入 key 解析、base_url 泄露向量）+ minor → fix wave（Kuhn）。
+- **教训**：跨 worktree seam（Settings.api_key vs CredentialStore）和未鉴权 settings 端点是真实的安全/契约漏洞，最终评审抓出——正说明"先 spec 合规再代码质量"两阶段评审的价值。
