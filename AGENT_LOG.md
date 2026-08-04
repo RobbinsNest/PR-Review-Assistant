@@ -37,3 +37,8 @@
 - **实现**：backend 脚手架（pyproject/Settings/ErrorCode+ERROR_HTTP/logging/health/main/Makefile），commit `d46a065`（implementer: Parfit）。
 - **评审**：reviewer Erdos → ✅ spec compliant，0 Critical/Important；Minor 已裁决入 ledger（M5 settings cache 由 T2 顺手修复，M6 setup_logging 推迟到 T12）。
 - **教训**：pytest 在本机沙箱需 `--basetemp` + `-p no:cacheprovider`；fastapi 有无害 StarletteDeprecationWarning。
+
+### T2 完成（WT-1 backend-core）
+- **技能**：subagent-driven-development（implementer + reviewer）。
+- **实现**：pydantic 核心模型（PR/changed file/context、Category/Severity/Finding/FindingCandidate、AnalysisSummary/AnalysisResult）+ test_models.py + conftest M5 fixture；commit `e303357`（implementer: Sagan）。
+- **评审**：reviewer Peirce → ✅ spec compliant，0 Critical/Important；minor 入 ledger。

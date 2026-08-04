@@ -149,6 +149,8 @@ def test_health(client):
 
 ### Task T2: 核心数据模型（pydantic schemas）
 
+> ✅ **完成** — commit e303357（2026-08-04，implementer: Sagan；review: Peirce ✅ spec compliant，0 Critical/Important；M5 settings-cache fixture 已顺手合入）
+
 **Files:**
 - Create: `backend/app/models/__init__.py`, `backend/app/models/pr.py`, `backend/app/models/finding.py`, `backend/app/models/analysis.py`
 - Test: `backend/tests/test_models.py`
@@ -884,4 +886,5 @@ async def test_allow_within_limit():
 - **SPEC 覆盖**：M1↔T3/T4；M2↔T4；M3↔T6/T7/T8；M4↔T9；M5↔T10/T13；M6↔T11/T12；M7↔T14/T15/T16；凭据/分发↔T11/T17；CI↔T17；SSE↔T9/T15；示例 PR↔T15/T17；安全（掩码/脱敏/不落库）↔T3/T9/T11/T12 内约束。
 - **类型一致性**：`AnalysisUnit`（T4 定义，T6/T7 消费）；`FindingCandidate→Finding`（T2→T6→T7）；`TaskState` 字段（T9 定义，前端 T14 消费）；`AnalysisResult`（T2→T8→T10）。所有 schema 名以各 Task 的 Produces 为准。
 - **并行性**：WT-2（T6-T9）与 WT-3（T10-T13）都依赖 WT-1，二者在 WT-1 合并后可并行开发；WT-4 依赖 API 契约（T9/T13 的端点路径与请求/响应形状），可先行实现 UI 骨架。
+
 
