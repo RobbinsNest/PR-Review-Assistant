@@ -291,6 +291,8 @@ async def test_unauth_rate_limit_message():
 
 ### Task T4: 上下文构建（hunk → 函数/类上下文窗口 + 分片）
 
+> ✅ **完成** — commits `ab8081c`(feat) + `83fa9ab`(fix: Go/Rust+多行签名) + `0bccdc5`(fix: 单行套件回归)（2026-08-04，implementer: Mendel，fix2: Curie；review: Ptolemy 2 Important→修复，Wegener/Goodall 两轮 re-review 通过）
+
 **Files:**
 - Create: `backend/app/services/context_builder.py`
 - Test: `backend/tests/test_context_builder.py`

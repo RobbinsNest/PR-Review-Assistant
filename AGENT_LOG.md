@@ -48,3 +48,10 @@
 - **实现**：parse_pr_url + GitHubFetcher（分页/重试/限流错误分类/head 内容 base64 解码）+ tests（32 passed）；commit `76f07d4`（implementer: Galileo）。
 - **评审**：reviewer Dewey → ✅ Approved；1 Important 裁决：404→repo_not_found 为 plan 既定（pull_not_found 保留备用）；minor 入 ledger。
 - **教训**：评审清单中我写的"(PR endpoint→pull_not_found)"与 plan 自身测试冲突，属评审指令 artifact；裁决以 plan 文本为准。
+
+### T4 完成（WT-1 backend-core）
+- **技能**：subagent-driven-development（2 轮 fix round + 2 轮 scoped re-review）。
+- **实现**：context_builder（hunk 区间/函数窗口/分片）；commits `ab8081c`+`83fa9ab`+`0bccdc5`（implementer: Mendel，fix2: Curie）。
+- **评审**：reviewer Ptolemy → 2 Important（Go/Rust func/fn 窗口缺失、Python 多行签名窗口丢失）→ 修复；re-review Wegener 发现 1 个新回归（单行套件吞掉下一函数）→ fix2；Goodall 复核通过。
+- **裁决**：plan 修正——语言策略（python 缩进、{} 括号配对、未知±20）、build_analysis_unit 返回 list、truncated 语义。
+- **教训**：启发式函数边界是易错区，两次评审共抓出 3 个真实缺陷；tree-sitter 精确解析列为扩展方向的理由更充分了。
