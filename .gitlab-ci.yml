@@ -1,0 +1,32 @@
+# GitLab CI mirror of .github/workflows/ci.yml.
+#
+# The required deliverable job is `unit-test` (backend, Python 3.11); a
+# `frontend-test` job keeps the pipeline equivalent to the GitHub Actions
+# unit-test job (vitest + production build on Node 20).
+stages:
+  - test
+
+unit-test:
+  stage: test
+  image: python:3.11
+  script:
+    - pip install --upgrade pip
+    - pip install -r backend/requirements.txt
+    - pip install pytest pytest-asyncio respx
+    - pytest backend/tests -q
+
+frontend-test:
+  stage: test
+  image: node:20
+  script:
+    - npm ci
+    - npm test -- --run
+    - npm run build
+  cache:
+    key:
+      files:
+        - frontend/package-lock.json
+    paths:
+      - frontend/node_modules/
+  before_script:
+    - cd frontend

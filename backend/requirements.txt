@@ -1,0 +1,13 @@
+# Runtime dependencies for the PR Review Assistant backend.
+#
+# Mirrors [project.dependencies] in pyproject.toml, pinned to the exact
+# versions verified together in CI and the Docker image (Python 3.11).
+# Dev-only deps (pytest, pytest-asyncio, respx) are NOT part of the image;
+# CI installs them separately.
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+httpx==0.28.1
+pydantic==2.13.4
+pydantic-settings==2.14.2
+aiosqlite==0.22.1
+keyring==25.7.0

@@ -1,0 +1,30 @@
+# Convenience local deployment for the PR Review Assistant.
+#
+#   docker compose up --build
+#
+# The image is built from backend/Dockerfile (multi-stage: Node builds the
+# SPA, Python 3.11 serves API + SPA).  Configuration comes from .env
+# (copy .env.example first); SQLite data persists on the prra-data volume
+# mounted at /app/data, matching DATABASE_PATH in the image.
+services:
+  pr-review-assistant:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: pr-review-assistant:local
+    container_name: pr-review-assistant
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Explicit container defaults (also set in the image) so a missing
+      # .env never leaves the SPA or SQLite unconfigured.
+      STATIC_DIR: /app/backend/static
+      DATABASE_PATH: /app/data/analyses.db
+    volumes:
+      - prra-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  prra-data:

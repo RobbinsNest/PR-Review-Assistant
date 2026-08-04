@@ -1,0 +1,26 @@
+# Docker build context excludes (keeps the image build lean and hermetic).
+# The frontend dist is REBUILT inside the multi-stage image, so any local
+# node_modules/dist must not leak into stage 1.
+.git
+.worktrees
+.venv
+.venv-shared
+.venv-shared2
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+.tmp
+*.log
+
+# Local runtime/state never enters the image.
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.sqlite3
+
+# Frontend build artifacts are regenerated in the image.
+frontend/node_modules
+frontend/dist

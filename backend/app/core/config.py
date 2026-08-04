@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     rate_limit_per_min: int = 10
     #: Comma-separated CORS allowlist; empty means same-origin only.
     cors_origins: str = ""
+    #: Directory holding the built SPA (served at "/" when it exists).
+    #: Tests and local dev can point this elsewhere via STATIC_DIR.
+    static_dir: str = "frontend/dist"
 
     def api_key(self) -> str | None:
         """Return the configured LLM API key or ``None``.
