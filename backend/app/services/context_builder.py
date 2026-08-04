@@ -28,6 +28,8 @@ _BRACE_LANGUAGES = frozenset({
 })
 
 _UNKNOWN_FALLBACK_LINES = 20
+#: Lines of hunk neighborhood kept when an enclosing window exceeds the budget.
+TRIM_NEIGHBORHOOD_LINES = 20
 
 
 class AnalysisUnit(TypedDict):
@@ -160,7 +162,9 @@ def _scan_up_for_definition(lines: list[str], line: int) -> int | None:
 
 
 def build_analysis_unit(
-    file: ChangedFile, budget_in: int = 8000
+    file: ChangedFile,
+    budget_in: int = 8000,
+    trim_neighborhood: int = TRIM_NEIGHBORHOOD_LINES,
 ) -> list[AnalysisUnit]:
     """Build analysis units for one changed file.
 
@@ -168,7 +172,10 @@ def build_analysis_unit(
     (line-number-prefixed). If the combined diff + context fits ``budget_in``,
     a single unit is returned with ``truncated=False``; otherwise the hunks are
     split into contiguous groups, each returning a unit whose diff + context
-    stays within budget, all marked ``truncated=True``.
+    stays within budget, all marked ``truncated=True``. When a single window
+    alone still exceeds the budget (e.g. a tiny hunk inside a huge function),
+    the context is trimmed to the function signature plus the hunk neighborhood
+    (``trim_neighborhood`` lines each side) so the emitted unit fits.
     """
     diff = file.diff
     head_content = file.head_content or ""
@@ -194,10 +201,22 @@ def build_analysis_unit(
 
     def flush() -> None:
         nonlocal group_indices, group_intervals
-        chunk_context = _context_text(
-            head_content, _merge_intervals(group_intervals)
-        )
+        chunk_intervals = _merge_intervals(group_intervals)
+        chunk_context = _context_text(head_content, chunk_intervals)
         chunk_diff = _join_diff(header, [hunk_blocks[i] for i in group_indices])
+        if estimate_tokens(chunk_context) + estimate_tokens(chunk_diff) > budget_in:
+            # A single enclosing window can still exceed the budget (e.g. a
+            # 3-line hunk inside a 10k-line function). Trim every window in the
+            # group to its signature plus the hunk neighborhood so the unit
+            # fits within ``budget_in`` while keeping the relevant code.
+            trimmed_intervals = []
+            for idx, interval in zip(group_indices, group_intervals):
+                trimmed_intervals.extend(
+                    _trim_window(interval, hunk_ranges[idx], trim_neighborhood)
+                )
+            chunk_context = _context_text(
+                head_content, _merge_intervals(trimmed_intervals)
+            )
         units.append(AnalysisUnit(
             file_path=file.path, diff=chunk_diff,
             context=chunk_context, truncated=True,
@@ -228,6 +247,31 @@ def build_analysis_unit(
     if group_indices:
         flush()
     return units
+
+
+def _trim_window(
+    interval: tuple[int, int],
+    hunk_range: tuple[int, int],
+    n_lines: int,
+) -> list[tuple[int, int]]:
+    """Trim an enclosing window to the signature plus the hunk neighborhood.
+
+    Returns the window's first line (the function/class signature) together
+    with the hunk range widened by ``n_lines`` on each side, both clamped to
+    the original window. Used when a single window alone exceeds the token
+    budget so the emitted context stays within budget.
+    """
+    start, end = interval
+    hunk_start, hunk_end = hunk_range
+    signature = (start, min(start, end))
+    neighborhood = (
+        max(start, hunk_start - n_lines),
+        min(end, hunk_end + n_lines),
+    )
+    parts = [signature]
+    if neighborhood[0] <= neighborhood[1]:
+        parts.append(neighborhood)
+    return _merge_intervals(parts)
 
 
 def _language_for_path(path: str) -> str:

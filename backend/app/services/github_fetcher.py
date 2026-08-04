@@ -130,19 +130,28 @@ class GitHubFetcher:
         return response.json()
 
     async def _get(self, url: str) -> httpx.Response:
-        """GET ``url``; retry twice (0.5s / 1.0s) on network timeouts."""
+        """GET ``url``; retry twice (0.5s / 1.0s) on network/transport errors.
+
+        Both timeouts (``httpx.TimeoutException``) and other transport errors
+        such as ``httpx.ConnectError`` (DNS/network down) are retried, and
+        surface as ``AppError("github_api_error")`` once retries are exhausted
+        instead of leaking as raw 500s.
+        """
         attempts = len(RETRY_BACKOFF) + 1  # initial attempt + 2 retries
-        last_error: httpx.TimeoutException | None = None
+        last_error: httpx.TransportError | None = None
         for attempt in range(attempts):
             try:
                 return await self._get_client().get(url)
-            except httpx.TimeoutException as exc:
+            except httpx.TransportError as exc:
                 last_error = exc
                 if attempt < len(RETRY_BACKOFF):
                     await asyncio.sleep(RETRY_BACKOFF[attempt])
         raise AppError(
             "github_api_error",
-            message=f"GitHub API request timed out after {attempts} attempts: {url}",
+            message=(
+                f"GitHub API request failed (network error) after "
+                f"{attempts} attempts: {url}"
+            ),
         ) from last_error
 
     def _get_client(self) -> httpx.AsyncClient:

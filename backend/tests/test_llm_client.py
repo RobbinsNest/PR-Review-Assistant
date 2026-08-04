@@ -97,3 +97,48 @@ async def test_request_payload_and_auth_header():
     assert payload["temperature"] == 0.1
     assert payload["response_format"] == {"type": "json_object"}
     assert payload["stream"] is False
+
+
+def test_api_key_required():
+    with pytest.raises(ValueError):
+        LLMClient("https://api.deepseek.com", "", "deepseek-v4-flash")
+    with pytest.raises(ValueError):
+        LLMClient("https://api.deepseek.com", None, "deepseek-v4-flash")
+
+
+@respx.mock
+async def test_401_raises_llm_api_error_without_repair_retry():
+    route = respx.post("https://api.deepseek.com/chat/completions").mock(
+        return_value=httpx.Response(401, json={"error": {"message": "Invalid API key"}}))
+    client = LLMClient("https://api.deepseek.com", "sk-1234567890abcdef", "deepseek-v4-flash")
+    with pytest.raises(AppError) as ei:
+        await client.chat_json([{"role": "user", "content": "hi"}], Out)
+    assert ei.value.code == "llm_api_error"
+    assert ei.value.status_code == 502
+    assert len(route.calls) == 1  # no repair retry on non-2xx
+    assert "401" in ei.value.message
+    assert "Invalid API key" in ei.value.message
+
+
+@respx.mock
+@pytest.mark.parametrize("status", [429, 500])
+async def test_non_2xx_raises_llm_api_error_without_repair_retry(status):
+    route = respx.post("https://api.deepseek.com/chat/completions").mock(
+        return_value=httpx.Response(status, json={}))
+    client = LLMClient("https://api.deepseek.com", "k", "deepseek-v4-flash")
+    with pytest.raises(AppError) as ei:
+        await client.chat_json([{"role": "user", "content": "hi"}], Out)
+    assert ei.value.code == "llm_api_error"
+    assert len(route.calls) == 1
+
+
+@respx.mock
+async def test_llm_api_error_message_redacts_api_key():
+    api_key = "sk-super-secret-key-1234567890"
+    respx.post("https://api.deepseek.com/chat/completions").mock(
+        return_value=httpx.Response(500, json={"error": {"message": f"upstream rejected {api_key}"}}))
+    client = LLMClient("https://api.deepseek.com", api_key, "deepseek-v4-flash")
+    with pytest.raises(AppError) as ei:
+        await client.chat_json([{"role": "user", "content": "hi"}], Out)
+    assert ei.value.code == "llm_api_error"
+    assert api_key not in ei.value.message

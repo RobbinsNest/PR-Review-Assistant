@@ -255,3 +255,23 @@ async def test_fetch_context_diff_too_large(monkeypatch):
     with pytest.raises(AppError) as ei:
         await f.fetch_context("o", "r", 1)
     assert ei.value.code == "analysis_too_large"
+
+
+@respx.mock
+async def test_connect_error_retries_then_succeeds():
+    route = respx.get("https://api.github.com/repos/o/r/pulls/1").mock(
+        side_effect=[httpx.ConnectError("boom"), httpx.Response(200, json=PR_PAYLOAD)])
+    f = GitHubFetcher()
+    info = await f.fetch_pr("o", "r", 1)
+    assert info.number == 1
+    assert route.call_count == 2
+
+
+@respx.mock
+async def test_connect_error_exhausted_raises_api_error():
+    respx.get("https://api.github.com/repos/o/r/pulls/1").mock(
+        side_effect=httpx.ConnectError("boom"))
+    f = GitHubFetcher()
+    with pytest.raises(AppError) as ei:
+        await f.fetch_pr("o", "r", 1)
+    assert ei.value.code == "github_api_error"

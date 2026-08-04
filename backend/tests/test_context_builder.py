@@ -184,3 +184,31 @@ def test_build_analysis_unit_splits_when_over_budget():
     combined_context = "\n".join(u["context"] for u in units)
     for i in range(1, 5):
         assert f"def f{i}" in combined_context
+
+
+def test_build_analysis_unit_trims_oversized_function_window():
+    # A small hunk deep inside a 10k-line function must not emit the entire
+    # function window (which would blow the token budget). The window is
+    # trimmed to the function signature plus the hunk neighborhood so every
+    # returned unit stays within budget_in.
+    lines = ["def huge():"] + [f"    x = {i}" for i in range(1, 10000)]
+    content = "\n".join(lines)
+    diff = (
+        "@@ -4999,3 +5000,3 @@\n"
+        "     x = 4999\n"
+        "-    x = 5000\n"
+        "+    x = 5000\n"
+    )
+    f = ChangedFile(path="a.py", status="modified", additions=1, deletions=1,
+                    diff=diff, head_content=content)
+    budget_in = 2000
+    units = build_analysis_unit(f, budget_in=budget_in)
+    assert len(units) == 1
+    unit = units[0]
+    assert unit["truncated"] is True
+    assert estimate_tokens(unit["context"]) <= budget_in
+    assert estimate_tokens(unit["context"]) + estimate_tokens(unit["diff"]) <= budget_in
+    # The signature and the hunk neighborhood survive the trim.
+    assert "def huge" in unit["context"]
+    assert "5000:" in unit["context"]
+    assert "9999:" not in unit["context"]

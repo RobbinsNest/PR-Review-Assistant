@@ -14,6 +14,7 @@ class ErrorCode(str, Enum):
     GITHUB_API_ERROR = "github_api_error"
     LLM_TIMEOUT = "llm_timeout"
     LLM_JSON_PARSE_FAILED = "llm_json_parse_failed"
+    LLM_API_ERROR = "llm_api_error"
     TASK_CANCELLED = "task_cancelled"
     ANALYSIS_TOO_LARGE = "analysis_too_large"
     NOT_FOUND = "not_found"
@@ -30,6 +31,7 @@ ERROR_HTTP: dict[str, int] = {
     ErrorCode.GITHUB_API_ERROR.value: 502,
     ErrorCode.LLM_TIMEOUT.value: 504,
     ErrorCode.LLM_JSON_PARSE_FAILED.value: 400,
+    ErrorCode.LLM_API_ERROR.value: 502,
     ErrorCode.TASK_CANCELLED.value: 400,
     ErrorCode.ANALYSIS_TOO_LARGE.value: 413,
     ErrorCode.NOT_FOUND.value: 404,

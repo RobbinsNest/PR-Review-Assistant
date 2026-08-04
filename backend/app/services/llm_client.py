@@ -16,6 +16,7 @@ import httpx
 from pydantic import BaseModel
 
 from app.core.errors import AppError
+from app.core.logging import redact
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,9 @@ class LLMClient:
     def __init__(
         self, base_url: str, api_key: str, model: str, timeout: float = 60.0
     ) -> None:
+        if not api_key:
+            raise ValueError("api_key is required")
+        self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._client = httpx.AsyncClient(
@@ -68,18 +72,16 @@ class LLMClient:
                     "llm_json_parse_failed",
                     message="LLM output is not valid JSON matching the requested schema",
                 ) from exc
-        # Unreachable: the loop returns or raises on every attempt.
-        raise AppError(
-            "llm_json_parse_failed",
-            message="LLM output is not valid JSON matching the requested schema",
-        )
+
 
     async def _request_chat(
         self, messages: list[dict], temperature: float
     ) -> httpx.Response:
         """POST a chat completion; retry once on transport errors.
 
-        Raises ``AppError("llm_timeout")`` after the retry is exhausted.
+        Non-2xx responses raise ``AppError("llm_api_error")`` immediately
+        (redacted provider message, no repair retry); transport failures raise
+        ``AppError("llm_timeout")`` after the retry is exhausted.
         """
         url = f"{self._base_url}/chat/completions"
         payload = {
@@ -106,11 +108,46 @@ class LLMClient:
                 response.status_code,
                 (time.monotonic() - started) * 1000,
             )
+            if not response.is_success:
+                # Provider rejected the request (auth, rate limit, server
+                # error). Surface it as llm_api_error immediately; a repair
+                # retry only applies to 2xx responses with unparsable output.
+                raise AppError(
+                    "llm_api_error",
+                    message=redact(
+                        _provider_error_message(response),
+                        secret=self._api_key,
+                    ),
+                )
             return response
         raise AppError(
             "llm_timeout",
             message=f"LLM request failed after {RETRY_ATTEMPTS} attempts",
         ) from last_error
+
+
+def _provider_error_message(response: httpx.Response) -> str:
+    """Build a provider-facing error message from a non-2xx response.
+
+    Pulls the ``error.message`` / ``message`` field out of a JSON error body
+    and falls back to the HTTP reason phrase. The result is redacted by the
+    caller so an echoed API key never reaches the message.
+    """
+    detail = ""
+    try:
+        data = response.json()
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        error = data.get("error")
+        if isinstance(error, dict):
+            detail = str(error.get("message") or "")
+        elif isinstance(error, str):
+            detail = error
+        if not detail:
+            detail = str(data.get("message") or "")
+    suffix = detail or response.reason_phrase or ""
+    return f"LLM API error {response.status_code}: {suffix}"
 
 
 def _extract_content(response: httpx.Response) -> str | None:
