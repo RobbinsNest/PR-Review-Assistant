@@ -31,3 +31,9 @@
 - **决策**：`git config --global http.https://github.com.proxy http://127.0.0.1:7897`（仅 github.com 作用域）；git 凭据管理器已有凭据，`git push --force origin main` 成功（d787855→3fb71bd）。
 - **影响**：放弃"GitHub MCP 镜像 commit"方案，恢复标准 git push + GitHub App 开/合 PR 工作流；后续所有 worktree 均可正常 push。
 - **注意**：worktree 内 subagent 若需 push，须在可联网（代理）的 shell 中执行；沙箱内网络受限时用 escalation。
+
+### T1 完成（WT-1 backend-core）
+- **技能**：subagent-driven-development（implementer + task reviewer 两阶段评审）。
+- **实现**：backend 脚手架（pyproject/Settings/ErrorCode+ERROR_HTTP/logging/health/main/Makefile），commit `d46a065`（implementer: Parfit）。
+- **评审**：reviewer Erdos → ✅ spec compliant，0 Critical/Important；Minor 已裁决入 ledger（M5 settings cache 由 T2 顺手修复，M6 setup_logging 推迟到 T12）。
+- **教训**：pytest 在本机沙箱需 `--basetemp` + `-p no:cacheprovider`；fastapi 有无害 StarletteDeprecationWarning。
