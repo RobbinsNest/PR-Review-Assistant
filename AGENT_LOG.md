@@ -25,3 +25,9 @@
 - **结果**：5 测试全绿；提交 c77bf00、1c253fc。**产物按用户要求丢弃**（worktree reset 到 main）。
 - **暴露缺陷**：ERROR_HTTP 表位置（T1 引用了 T12 的内容）→ T1 一次性写全；T1 红态描述与实际不符 → 改"红态即可"；pytest 系统 TEMP 被沙箱拒绝 → 全局约束加 .tmp/TEMP 方案；asyncio_mode 缺失 → 写入 T1；Makefile 命令未定义 → 明确；python-multipart 未用 → 移除。
 - **教训**：spec 中"跨任务引用"的常量（错误映射表）应就近定义一次，否则冷启动 agent 会自行猜测补全——它猜对了，但不能依赖运气。
+
+### T-0 环境适配（人工发现：本地代理解锁 git push）
+- **问题**：直连 github.com:443 不通；但本机 127.0.0.1:7897 有 HTTP 代理（Clash 类），经其可通 github.com（200）。
+- **决策**：`git config --global http.https://github.com.proxy http://127.0.0.1:7897`（仅 github.com 作用域）；git 凭据管理器已有凭据，`git push --force origin main` 成功（d787855→3fb71bd）。
+- **影响**：放弃"GitHub MCP 镜像 commit"方案，恢复标准 git push + GitHub App 开/合 PR 工作流；后续所有 worktree 均可正常 push。
+- **注意**：worktree 内 subagent 若需 push，须在可联网（代理）的 shell 中执行；沙箱内网络受限时用 escalation。
