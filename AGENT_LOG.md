@@ -101,3 +101,8 @@
 - **WT-2**（analysis-engine）reviewer Noether：**With fixes** — 2 Important（共享 stats 并发竞态、registry/队列无界增长）+ minor（BOM、repair 消息编码待验）→ fix wave（Averroes）。
 - **WT-3**（history-settings）reviewer Kierkegaard：**With fixes** — 2 Important（凭据未接入 key 解析、base_url 泄露向量）+ minor → fix wave（Kuhn）。
 - **教训**：跨 worktree seam（Settings.api_key vs CredentialStore）和未鉴权 settings 端点是真实的安全/契约漏洞，最终评审抓出——正说明"先 spec 合规再代码质量"两阶段评审的价值。
+
+### WT-2/WT-3 合并（PR #2/#3）
+- **技能**：subagent-driven-development + finishing（用户既定每 worktree→PR）。
+- **结果**：PR #2（analysis-engine，head 0ab4c4c）与 PR #3（history-settings，head 3163f8e）经最终评审 fix wave 后合并；PR #3 因两分支同改 main.py 产生冲突，用 update-branch 流程（merge origin/main + 人工调和 main.py 合并两个 router + 修复 test_api_analyze 的 rate_limiter fixture）解决；合并树 **192 tests pass**。
+- **教训**：并行分支改同一文件（main.py）必然冲突；用"先合一个 PR → 另一个 update-branch 调和 → 全量测试 → 再合"可干净解决；两阶段评审 + 最终评审共抓出 8+ 个真实缺陷（含安全/并发/契约类）。
