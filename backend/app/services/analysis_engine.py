@@ -1,4 +1,5 @@
-"""T6/T7 analysis engine: Stage 1 candidate generation + Stage 2 verification.
+"""T6-T8 analysis engine: Stage 1 candidate generation + Stage 2 verification
++ Stage 3 aggregation, orchestrated by ``run_analysis``.
 
 Stage 1 (``stage1_generate``) issues one LLM call per :class:`AnalysisUnit`
 (T4) via ``LLMClient.chat_json`` (T5) asking for raw candidate findings, then
@@ -15,6 +16,13 @@ the unit, or whose range contains no true changed line (an actual ``+``/``-``
 line, not just the hunk span), is dropped; ``downgrade`` lowers severity one
 level and the verification confidence replaces the candidate's confidence.
 Survivors become the final :class:`Finding` list.
+
+Stage 3 (``aggregate``) asks the model for one :class:`AnalysisSummary` over
+the verified findings.  ``run_analysis`` wires the stages together over a
+:class:`PRContext` (T2): ``building`` (T4 units), ``analyzing``, ``verifying``,
+``aggregating`` - with a ``(stage, done, total)`` progress callback - and
+assembles the result ``meta`` with stage durations, token estimates, skipped
+files, and the T6 cross-stage counters.
 """
 
 from __future__ import annotations
@@ -23,15 +31,19 @@ import asyncio
 import json
 import logging
 import re
+import time
 from collections.abc import Callable
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.core.errors import AppError
+from app.models.analysis import AnalysisResult, AnalysisSummary
 from app.models.finding import Finding, FindingCandidate, Severity
+from app.models.pr import PRContext, PRInfo
 from app.services.context_builder import (
     AnalysisUnit,
+    build_analysis_unit,
     estimate_tokens,
     extract_hunk_ranges,
 )
@@ -40,8 +52,10 @@ from app.services.llm_client import LLMClient
 logger = logging.getLogger(__name__)
 
 #: Stage labels reported through the ``progress`` callback.
+STAGE_BUILDING = "building"
 STAGE_ANALYZING = "analyzing"
 STAGE_VERIFYING = "verifying"
+STAGE_AGGREGATING = "aggregating"
 
 #: Fixed generation instructions.  Always sent as the system message so the
 #: model sees the exact contract (enums, confidence range, changed-line scope,
@@ -102,6 +116,23 @@ VERIFY_SYSTEM_PROMPT = (
 )
 
 
+#: Fixed aggregation instructions for Stage 3: one summary over the verified
+#: findings, never new analysis.
+AGGREGATE_SYSTEM_PROMPT = (
+    "You are a senior engineering lead writing the final review summary for "
+    "a pull request.\n"
+    "Base the summary ONLY on the verified findings below; do not introduce "
+    "new findings.\n"
+    "Produce a JSON object with a single key \"summary\" containing:\n"
+    "- title: a short headline for the review\n"
+    "- overview: 2-3 sentences summarizing the state of the change\n"
+    "- key_points: the most important takeaways for the author\n"
+    "- risk_highlights: the highest-risk issues that should block or gate "
+    "the merge\n"
+    "Output pure JSON and nothing else."
+)
+
+
 class GenerateOutput(BaseModel):
     """Raw LLM output for one analysis unit."""
 
@@ -129,6 +160,16 @@ class VerifyOutput(BaseModel):
 
 #: Pydantic schema validated against the LLM output in Stage 2.
 VERIFY_SCHEMA = VerifyOutput
+
+
+class AggregateOutput(BaseModel):
+    """LLM output for the Stage 3 aggregation call."""
+
+    summary: AnalysisSummary
+
+
+#: Pydantic schema validated against the LLM output in Stage 3.
+AGGREGATE_SCHEMA = AggregateOutput
 
 #: Severity mapping applied when the verification verdict is ``downgrade``.
 _DOWNGRADE_SEVERITY: dict[Severity, Severity] = {
@@ -202,9 +243,11 @@ def build_verify_messages(
     """Build the system/user message pair for one unit's verification call.
 
     The system message carries the three per-candidate questions (introduced
-    by this change / within the changed lines / consistent with the context)
-    and the prefer-drop-over-keep rule.  The user message carries the diff,
-    context, and the candidates serialized as JSON with their indices.
+    by this change / within the changed lines / consistent with the context),
+    the prefer-drop-over-keep rule, and - when the unit is truncated - the
+    same partial-coverage note used in generation so the verifier knows the
+    context is not the full file.  The user message carries the diff, context,
+    and the candidates serialized as JSON with their indices.
     """
     candidates_json = json.dumps(
         [
@@ -213,8 +256,11 @@ def build_verify_messages(
         ],
         ensure_ascii=False,
     )
+    parts = [VERIFY_SYSTEM_PROMPT]
+    if unit["truncated"]:
+        parts.append(TRUNCATED_COVERAGE_NOTE)
     return [
-        {"role": "system", "content": VERIFY_SYSTEM_PROMPT},
+        {"role": "system", "content": "\n\n".join(parts)},
         {
             "role": "user",
             "content": (
@@ -224,6 +270,34 @@ def build_verify_messages(
                 f"Candidates (JSON):\n{candidates_json}"
             ),
         },
+    ]
+
+
+def build_aggregate_messages(
+    pr_info: PRInfo, per_file: list[tuple[str, list[Finding]]]
+) -> list[dict]:
+    """Build the system/user message pair for the Stage 3 aggregation call.
+
+    The system message carries the fixed summary instructions
+    (:data:`AGGREGATE_SYSTEM_PROMPT`); the user message carries the PR
+    metadata (owner/repo/number, title, URL) and, per file, the verified
+    findings serialized as JSON.
+    """
+    body = "\n\n".join(
+        f"File: {path}\nFindings:\n"
+        f"{json.dumps([f.model_dump(mode='json') for f in findings], ensure_ascii=False, indent=2)}"
+        for path, findings in per_file
+    )
+    user = (
+        f"Pull request: {pr_info.owner}/{pr_info.repo}#{pr_info.number}\n"
+        f"Title: {pr_info.title}\n"
+        f"URL: {pr_info.html_url}"
+    )
+    if body:
+        user = f"{user}\n\n{body}"
+    return [
+        {"role": "system", "content": AGGREGATE_SYSTEM_PROMPT},
+        {"role": "user", "content": user},
     ]
 
 
@@ -423,6 +497,145 @@ class AnalysisEngine:
         gathered = await asyncio.gather(*(worker(pair) for pair in pairs))
         return [finding for findings in gathered for finding in findings]
 
+    async def aggregate(
+        self, pr_info: PRInfo, findings: list[Finding]
+    ) -> AnalysisSummary:
+        """Summarize the verified findings with one Stage 3 LLM call.
+
+        Findings are grouped by ``file_path`` (first-seen order) so the model
+        sees per-file sections; the returned :class:`AnalysisSummary` becomes
+        the review's headline summary.  A failure here propagates to the
+        caller - ``run_analysis`` isolates it and falls back to an empty
+        summary so verified findings are never lost.
+        """
+        by_file: dict[str, list[Finding]] = {}
+        for finding in findings:
+            by_file.setdefault(finding.file_path, []).append(finding)
+        per_file = list(by_file.items())
+        messages = build_aggregate_messages(pr_info, per_file)
+        output = await self.llm.chat_json(messages, AGGREGATE_SCHEMA)
+        return output.summary
+
+    async def run_analysis(
+        self,
+        ctx: PRContext,
+        progress: Callable[[str, int, int], None] | None = None,
+    ) -> AnalysisResult:
+        """Run the full pipeline over a PR context.
+
+        Stages: ``building`` (T4 units per file; unbuildable files are
+        recorded skipped), ``analyzing`` (Stage 1), ``verifying`` (Stage 2),
+        ``aggregating`` (Stage 3).  ``progress`` fires as ``(stage, done,
+        total)`` with per-file totals in ``building`` and per-unit totals in
+        ``analyzing``/``verifying``.
+
+        Partial-failure semantics: a file that cannot be built is skipped; as
+        long as at least one file produces units a result is returned with
+        ``meta["partial"]`` marking the partial success.  When no file is
+        analyzable an ``AppError("no_analyzable_files")`` is raised, and when
+        aggregation fails the result falls back to an empty summary
+        (``aggregate_failed`` in meta) rather than losing the verified
+        findings.  ``meta`` carries ``stage_durations``, ``token_estimate``,
+        ``skipped_files``, and the T6 cross-stage counters
+        (``dropped_by_scope``/``skipped_units``/``scaffolding_tokens``).
+        """
+        stage_durations: dict[str, float] = {}
+        skipped_files: list[str] = []
+        units: list[AnalysisUnit] = []
+
+        # -- building: T4 units per file; unbuildable files are skipped ------
+        building_started = time.monotonic()
+        total_files = len(ctx.files)
+        completed = 0
+        for file in ctx.files:
+            try:
+                file_units = build_analysis_unit(file)
+            except Exception as exc:
+                skipped_files.append(file.path)
+                if isinstance(exc, AppError):
+                    logger.warning(
+                        "build skipped file=%s code=%s", file.path, exc.code
+                    )
+                else:
+                    logger.warning(
+                        "build skipped file=%s error=%s",
+                        file.path,
+                        exc.__class__.__name__,
+                    )
+            else:
+                if file_units:
+                    units.extend(file_units)
+                else:
+                    skipped_files.append(file.path)
+            completed += 1
+            if progress is not None:
+                progress(STAGE_BUILDING, completed, total_files)
+        stage_durations["building"] = round(
+            time.monotonic() - building_started, 4
+        )
+
+        if not units:
+            raise AppError(
+                "no_analyzable_files",
+                message="no analyzable files in the pull request",
+            )
+
+        # -- analyzing: Stage 1 candidate generation ------------------------
+        analyzing_started = time.monotonic()
+        pairs = await self.stage1_generate(units, progress=progress)
+        stage_durations["analyzing"] = round(
+            time.monotonic() - analyzing_started, 4
+        )
+
+        # -- verifying: Stage 2 verification --------------------------------
+        verifying_started = time.monotonic()
+        findings = await self.stage2_verify(pairs, progress=progress)
+        stage_durations["verifying"] = round(
+            time.monotonic() - verifying_started, 4
+        )
+
+        # -- aggregating: Stage 3 summary -----------------------------------
+        aggregating_started = time.monotonic()
+        aggregate_failed = False
+        try:
+            summary = await self.aggregate(ctx.info, findings)
+        except Exception as exc:  # verified findings must survive a bad summary
+            aggregate_failed = True
+            if isinstance(exc, AppError):
+                logger.warning("stage3 aggregation failed code=%s", exc.code)
+            else:
+                logger.warning(
+                    "stage3 aggregation failed error=%s",
+                    exc.__class__.__name__,
+                )
+            summary = AnalysisSummary(
+                title="", overview="", key_points=[], risk_highlights=[]
+            )
+        stage_durations["aggregating"] = round(
+            time.monotonic() - aggregating_started, 4
+        )
+        if progress is not None:
+            progress(STAGE_AGGREGATING, 1, 1)
+
+        meta: dict = {
+            "stage_durations": stage_durations,
+            "token_estimate": _token_estimate(
+                units, self.stats["scaffolding_tokens"]
+            ),
+            "skipped_files": skipped_files,
+            "dropped_by_scope": self.stats["dropped_by_scope"],
+            "skipped_units": self.stats["skipped_units"],
+            "scaffolding_tokens": self.stats["scaffolding_tokens"],
+            "partial": bool(
+                skipped_files
+                or self.stats["skipped_units"]
+                or aggregate_failed
+            ),
+        }
+        if aggregate_failed:
+            meta["aggregate_failed"] = True
+        return AnalysisResult(summary=summary, findings=findings, meta=meta)
+
 
 def _changed_lines(ranges: list[tuple[int, int]]) -> set[int]:
     """Expand hunk new-file ranges into a set of changed line numbers."""
@@ -490,3 +703,29 @@ def _scaffolding_tokens() -> int:
     }
     messages = build_generate_messages(empty_unit, "")
     return sum(estimate_tokens(message["content"]) for message in messages)
+
+
+def _token_estimate(
+    units: list[AnalysisUnit], scaffolding_tokens: int
+) -> dict:
+    """Estimate input tokens per unit and in total for ``meta.token_estimate``.
+
+    Per-unit input is the diff + context (T4's ``estimate_tokens``) plus the
+    fixed prompt scaffolding that every call carries (T6's
+    ``scaffolding_tokens``).
+    """
+    per_unit = [
+        {
+            "file_path": unit["file_path"],
+            "input_tokens": (
+                estimate_tokens(unit["diff"])
+                + estimate_tokens(unit["context"])
+                + scaffolding_tokens
+            ),
+        }
+        for unit in units
+    ]
+    return {
+        "units": per_unit,
+        "total_input_tokens": sum(item["input_tokens"] for item in per_unit),
+    }

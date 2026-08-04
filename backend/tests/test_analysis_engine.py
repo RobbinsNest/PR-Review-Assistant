@@ -1,4 +1,4 @@
-﻿"""T6 Stage 1 candidate generation: build_generate_messages / generate_for_unit / AnalysisEngine."""
+﻿"""Analysis-engine tests: T6 Stage 1 generation, T7 Stage 2 verification, T8 Stage 3 aggregation + orchestrator."""
 
 from app.services.analysis_engine import (
     AnalysisEngine,
@@ -9,13 +9,22 @@ from app.services.llm_client import LLMClient
 
 
 class FakeLLM:
-    def __init__(self, out):
+    """Reusable stub: validates ``out`` against the requested schema.
+
+    ``by_schema`` maps a pydantic schema class to its canned payload so one
+    fake can serve every stage of the pipeline (T8) while plain ``out`` keeps
+    the T6/T7 call sites unchanged.
+    """
+
+    def __init__(self, out, by_schema=None):
         self.out = out
+        self.by_schema = by_schema
         self.calls = 0
 
     async def chat_json(self, messages, schema, temperature=0.2):
         self.calls += 1
-        return schema.model_validate(self.out)
+        payload = self.by_schema[schema] if self.by_schema is not None else self.out
+        return schema.model_validate(payload)
 
 
 def unit():
@@ -320,3 +329,197 @@ async def test_stage2_drops_unit_when_verify_fails():
 async def test_stage2_verify_empty_pairs():
     engine = AnalysisEngine(FakeLLM({"results": []}))
     assert await engine.stage2_verify([]) == []
+
+# ---------------------------------------------------------------------------
+# T8 Stage 3 aggregation + run_analysis orchestrator
+# ---------------------------------------------------------------------------
+
+import pytest
+
+from app.core.errors import AppError
+from app.models.analysis import AnalysisSummary
+from app.models.finding import Finding
+from app.models.pr import ChangedFile, PRContext, PRInfo
+from app.services.analysis_engine import (
+    AGGREGATE_SCHEMA,
+    GENERATE_SCHEMA,
+    VERIFY_SCHEMA,
+    build_aggregate_messages,
+)
+
+
+EMPTY_SUMMARY = {
+    "title": "",
+    "overview": "",
+    "key_points": [],
+    "risk_highlights": [],
+}
+
+
+def pr_info(**overrides):
+    base = {
+        "owner": "o", "repo": "r", "number": 1, "title": "t",
+        "html_url": "u", "base_sha": "a", "head_sha": "b",
+    }
+    base.update(overrides)
+    return PRInfo(**base)
+
+
+def changed_file(path="a.py", **overrides):
+    base = {
+        "path": path, "status": "modified", "additions": 1, "deletions": 1,
+        "diff": "@@ -1,2 +1,2 @@\n-x\n+y",
+        "head_content": "def f():\n    x = 1\n    y = 2\n",
+    }
+    base.update(overrides)
+    return ChangedFile(**base)
+
+
+def pipeline_llm():
+    """Fake LLM returning schema-appropriate empty outputs for the pipeline."""
+    return FakeLLM({"findings": []}, by_schema={
+        GENERATE_SCHEMA: {"findings": []},
+        VERIFY_SCHEMA: {"results": []},
+        AGGREGATE_SCHEMA: {"summary": EMPTY_SUMMARY},
+    })
+
+
+async def test_build_verify_messages_notes_truncation():
+    # A truncated unit must carry the same honest partial-coverage note in the
+    # verification call as in generation, or the verifier may misjudge scope.
+    u = {**verify_unit(), "truncated": True}
+    msgs = build_verify_messages(u, [cand()])
+    system = msgs[0]["content"]
+    assert "truncated" in system.lower() or "partial" in system.lower()
+
+
+async def test_true_changed_lines_multi_hunk():
+    # Two hunks: line 2 touched in the first, line 11 in the second.
+    diff = "@@ -1,2 +1,2 @@\n a\n-b\n+b\n@@ -10,2 +10,2 @@\n c\n-d\n+d"
+    assert true_changed_lines(diff) == {2, 11}
+
+
+async def test_true_changed_lines_pure_deletion():
+    # A deletion-only hunk anchors both removed lines at the insertion point.
+    diff = "@@ -1,2 +1,0 @@\n-a\n-b"
+    assert true_changed_lines(diff) == {1}
+
+
+async def test_build_aggregate_messages_contains_pr_and_findings():
+    info = pr_info(title="Fix flaky test")
+    f = Finding.model_validate(finding())
+    msgs = build_aggregate_messages(info, [("a.py", [f])])
+    assert [m["role"] for m in msgs] == ["system", "user"]
+    system = msgs[0]["content"]
+    assert "summary" in system and "title" in system
+    user = msgs[1]["content"]
+    assert "o/r#1" in user and "Fix flaky test" in user
+    assert "a.py" in user and "bug" in user
+
+
+async def test_aggregate_returns_summary_from_llm():
+    llm = FakeLLM({"findings": []}, by_schema={
+        AGGREGATE_SCHEMA: {"summary": {
+            "title": "Review title",
+            "overview": "overview text",
+            "key_points": ["k1"],
+            "risk_highlights": ["r1"],
+        }},
+    })
+    engine = AnalysisEngine(llm)
+    summary = await engine.aggregate(pr_info(), [])
+    assert isinstance(summary, AnalysisSummary)
+    assert summary.title == "Review title"
+    assert summary.key_points == ["k1"]
+
+
+async def test_aggregate_groups_findings_by_file_in_user_message():
+    captured = {}
+
+    class CaptureLLM:
+        async def chat_json(self, messages, schema, temperature=0.2):
+            captured["user"] = messages[1]["content"]
+            return schema.model_validate({"summary": EMPTY_SUMMARY})
+
+    engine = AnalysisEngine(CaptureLLM())
+    f1 = Finding.model_validate(finding())
+    f2 = Finding.model_validate(finding(file_path="b.py"))
+    await engine.aggregate(pr_info(), [f1, f2])
+    assert "a.py" in captured["user"] and "b.py" in captured["user"]
+
+
+async def test_run_analysis_full_pipeline():
+    engine = AnalysisEngine(pipeline_llm())
+    ctx = PRContext(info=pr_info(), files=[changed_file()])
+    events = []
+    result = await engine.run_analysis(
+        ctx,
+        progress=lambda stage, done, total: events.append((stage, done, total)),
+    )
+    assert isinstance(result.summary, AnalysisSummary)
+    assert result.summary.title == ""
+    assert result.findings == []
+    assert "skipped_files" in result.meta
+    assert "stage_durations" in result.meta
+    assert "token_estimate" in result.meta
+    stages = {e[0] for e in events}
+    assert {"building", "analyzing", "verifying", "aggregating"} <= stages
+
+
+async def test_run_analysis_meta_includes_t6_stats():
+    engine = AnalysisEngine(pipeline_llm())
+    ctx = PRContext(info=pr_info(), files=[changed_file()])
+    result = await engine.run_analysis(ctx)
+    assert result.meta["dropped_by_scope"] == engine.stats["dropped_by_scope"]
+    assert result.meta["skipped_units"] == engine.stats["skipped_units"]
+    assert result.meta["scaffolding_tokens"] == engine.stats["scaffolding_tokens"]
+    assert set(result.meta["stage_durations"]) >= {
+        "building", "analyzing", "verifying", "aggregating",
+    }
+    assert result.meta["token_estimate"]["total_input_tokens"] > 0
+
+
+async def test_run_analysis_records_build_failure_as_skipped(monkeypatch):
+    import app.services.analysis_engine as engine_mod
+
+    real = engine_mod.build_analysis_unit
+
+    def flaky(file):
+        if file.path == "bad.py":
+            raise RuntimeError("boom")
+        return real(file)
+
+    monkeypatch.setattr(engine_mod, "build_analysis_unit", flaky)
+    llm = pipeline_llm()
+    engine = AnalysisEngine(llm)
+    ctx = PRContext(info=pr_info(), files=[
+        changed_file(path="bad.py"), changed_file(path="good.py"),
+    ])
+    result = await engine.run_analysis(ctx)
+    assert result.meta["skipped_files"] == ["bad.py"]
+    assert result.meta["partial"] is True
+    assert llm.calls >= 1  # the surviving file still reached the pipeline
+
+
+async def test_run_analysis_falls_back_when_aggregate_fails():
+    class FailingAggregateLLM:
+        async def chat_json(self, messages, schema, temperature=0.2):
+            if schema is AGGREGATE_SCHEMA:
+                raise RuntimeError("boom")
+            return schema.model_validate({"findings": []})
+
+    engine = AnalysisEngine(FailingAggregateLLM())
+    ctx = PRContext(info=pr_info(), files=[changed_file()])
+    result = await engine.run_analysis(ctx)
+    assert isinstance(result.summary, AnalysisSummary)
+    assert result.summary.title == ""
+    assert result.meta.get("aggregate_failed") is True
+
+
+async def test_run_analysis_raises_when_no_files_analyzable():
+    engine = AnalysisEngine(pipeline_llm())
+    ctx = PRContext(info=pr_info(), files=[])
+    with pytest.raises(AppError) as excinfo:
+        await engine.run_analysis(ctx)
+    assert excinfo.value.code == "no_analyzable_files"
+
