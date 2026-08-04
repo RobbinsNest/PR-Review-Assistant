@@ -42,3 +42,9 @@
 - **技能**：subagent-driven-development（implementer + reviewer）。
 - **实现**：pydantic 核心模型（PR/changed file/context、Category/Severity/Finding/FindingCandidate、AnalysisSummary/AnalysisResult）+ test_models.py + conftest M5 fixture；commit `e303357`（implementer: Sagan）。
 - **评审**：reviewer Peirce → ✅ spec compliant，0 Critical/Important；minor 入 ledger。
+
+### T3 完成（WT-1 backend-core）
+- **技能**：subagent-driven-development。
+- **实现**：parse_pr_url + GitHubFetcher（分页/重试/限流错误分类/head 内容 base64 解码）+ tests（32 passed）；commit `76f07d4`（implementer: Galileo）。
+- **评审**：reviewer Dewey → ✅ Approved；1 Important 裁决：404→repo_not_found 为 plan 既定（pull_not_found 保留备用）；minor 入 ledger。
+- **教训**：评审清单中我写的"(PR endpoint→pull_not_found)"与 plan 自身测试冲突，属评审指令 artifact；裁决以 plan 文本为准。

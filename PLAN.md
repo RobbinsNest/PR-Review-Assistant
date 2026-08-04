@@ -203,6 +203,8 @@ def test_analysis_result_accepts_empty_findings():
 
 ### Task T3: GitHub 数据获取（URL 解析 + REST 客户端）
 
+> ✅ **完成** — commit `76f07d4`（2026-08-04，implementer: Galileo；review: Dewey ✅ Approved；404→repo_not_found 裁决为 plan 既定，pull_not_found 保留备用）
+
 **Files:**
 - Create: `backend/app/services/__init__.py`, `backend/app/services/github_fetcher.py`
 - Test: `backend/tests/test_pr_parser.py`, `backend/tests/test_github_fetcher.py`
