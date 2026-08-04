@@ -27,6 +27,7 @@
 - 示例 PR：实现时钉选一个稳定公开样例（owner/repo/pull 号写入配置），并为测试录制其 GitHub fixture。
 - 日志与错误信息不包含任何凭据；`/healthz` 健康检查。
 - 端口：后端 8000；Docker 暴露 8000。
+- **本机环境（Windows + 沙箱）**：pytest 的 `tmp_path` 默认写系统 TEMP 会被沙箱拒绝；运行测试前在 worktree 内建 `.tmp` 目录并设 `$env:TEMP=$env:TMP=<worktree>\.tmp`（或 pytest `--basetemp`），确保测试临时文件落在工作区内。
 
 ---
 
@@ -112,13 +113,13 @@ Makefile
 - Create: `backend/app/core/__init__.py`, `backend/app/core/config.py`, `backend/app/core/logging.py`, `backend/app/core/errors.py`
 - Create: `backend/app/api/__init__.py`, `backend/app/api/health.py`
 - Create: `backend/tests/__init__.py`, `backend/tests/conftest.py`, `backend/tests/test_health.py`
-- Create: `Makefile`（根目录，`make test` 跑后端测试）
+- Create: `Makefile`（根目录）：`test` 目标 = `cd backend && pytest tests/ -v`；`build` = `docker build -t pr-review-assistant .`；`run` = `docker run -p 8000:8000 --env-file .env -v prra-data:/app/data pr-review-assistant`（本机无 make 时可直接用 pytest 验证）
 
 **Interfaces:**
 - Consumes: 无（首个任务）
 - Produces:
   - `app.core.config.Settings`（pydantic-settings）：字段 `llm_base_url: str = "https://api.deepseek.com"`、`llm_model: str = "deepseek-v4-flash"`、`llm_api_key_env: str = "LLM_API_KEY"`、`analysis_concurrency: int = 4`、`max_files: int = 50`、`max_diff_bytes: int = 2 * 1024 * 1024`、`file_token_budget_in: int = 8000`、`file_token_budget_out: int = 4000`、`llm_timeout_sec: float = 60.0`、`example_pr: str = "owner/repo/pull/1"`、`database_path: str = "data/analyses.db"`、`rate_limit_per_min: int = 10`；方法 `api_key()`（从 keyring 或 env 读取，见 T11，本任务先返回 env 值）。
-  - `app.core.errors.AppError`（异常，含 `code: str`）与 `ERROR_HTTP` 映射；`app.api.health.router`。
+  - `app.core.errors.AppError`（异常，含 `code: str`）与 `ERROR_HTTP` 映射（**本任务一次性写全**，供后续所有任务引用）：默认 400；`repo_not_found/pull_not_found`→404；`github_rate_limited`→429；`analysis_too_large`→413；`llm_timeout`→504；`not_found`→404；`rate_limited`→429。错误码枚举一次性包含：`invalid_url/repo_not_found/pull_not_found/private_repo_requires_token/github_rate_limited/llm_timeout/llm_json_parse_failed/task_cancelled/analysis_too_large/not_found/rate_limited`。`app.api.health.router`。
 
 - [ ] **Step 1: 写失败测试 `test_health.py`**
 
@@ -131,9 +132,9 @@ def test_health(client):
     assert r.json()["status"] == "ok"
 ```
 
-- [ ] **Step 2: 运行确认失败** — `pytest backend/tests/test_health.py -v` 期望：`ModuleNotFoundError`（无 app 包）。
+- [ ] **Step 2: 运行确认失败** — `pytest backend/tests/test_health.py -v` 期望：红态即可（`fixture 'client' not found` 或 `ModuleNotFoundError`，取决于 conftest 是否已建）；不要继续实现直到看到失败。
 - [ ] **Step 3: 实现脚手架**
-  - `pyproject.toml`：`requires-python = ">=3.11"`（Docker/CI 用 3.11 镜像）；依赖 `fastapi`、`uvicorn[standard]`、`httpx`、`pydantic>=2`、`pydantic-settings`、`aiosqlite`、`keyring`、`python-multipart`（如需）；dev 依赖 `pytest`、`pytest-asyncio`、`respx`。
+  - `pyproject.toml`：`requires-python = ">=3.11"`（Docker/CI 用 3.11 镜像）；依赖 `fastapi`、`uvicorn[standard]`、`httpx`、`pydantic>=2`、`pydantic-settings`、`aiosqlite`、`keyring`；dev 依赖 `pytest`、`pytest-asyncio`、`respx`（不声明 `python-multipart`，本项目无表单上传）。加 `[tool.pytest.ini_options] asyncio_mode = "auto"`（pytest-asyncio 1.x 需要，T3 起大量裸 async 测试）。
   - `core/config.py`：如上 Settings；`get_settings()` 懒加载单例。
   - `core/logging.py`：`logging.basicConfig` 结构化格式（JSON 可选，至少含时间/级别/消息），并加 `redact()` 帮助函数。
   - `core/errors.py`：`AppError` + 错误码枚举（`invalid_url/repo_not_found/pull_not_found/private_repo_requires_token/github_rate_limited/llm_timeout/llm_json_parse_failed/task_cancelled/analysis_too_large`）。

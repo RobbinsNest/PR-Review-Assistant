@@ -18,3 +18,10 @@
 ### T-0 环境适配（人工决策：Python 版本）
 - **问题**：本机默认 Python 3.14；Python 3.11 安装到用户目录后沙箱拒绝执行（仅可经 escalation 运行），本地 TDD 不便。
 - **决策（用户确认"下不下都行"）**：本地开发用 3.14 跑测试（`requires-python = ">=3.11"`）；**Docker 与 CI 固定 `python:3.11-slim`**，发行目标仍为 3.11。SPEC/PLAN 已同步更新。
+
+### T-CS 冷启动验证（§4.5，subagent "Locke"）
+- **技能**：无（冷启动 agent 仅凭 SPEC+PLAN 自主实现，未加载本会话上下文）。
+- **配置**：模型 deepseek-v4-flash（与主 agent 不同）、fork_context=false；任务=T1+T2；规则=遇不确定即暂停报告。
+- **结果**：5 测试全绿；提交 c77bf00、1c253fc。**产物按用户要求丢弃**（worktree reset 到 main）。
+- **暴露缺陷**：ERROR_HTTP 表位置（T1 引用了 T12 的内容）→ T1 一次性写全；T1 红态描述与实际不符 → 改"红态即可"；pytest 系统 TEMP 被沙箱拒绝 → 全局约束加 .tmp/TEMP 方案；asyncio_mode 缺失 → 写入 T1；Makefile 命令未定义 → 明确；python-multipart 未用 → 移除。
+- **教训**：spec 中"跨任务引用"的常量（错误映射表）应就近定义一次，否则冷启动 agent 会自行猜测补全——它猜对了，但不能依赖运气。
