@@ -35,6 +35,10 @@
 
 > ✅ **WT-1 (backend-core) 完成**：T1-T5 全部通过（66 tests），最终评审 clean；PR #1 = feat/backend-core（commit 15dcb66）。
 
+> ✅ **WT-2 (analysis-engine) 完成**：T6-T9 全部通过（126 tests），最终评审 fix 后 clean；PR #2 = feat/analysis-engine（head 0ab4c4c）。
+
+> ✅ **WT-3 (history-settings) 完成**：T10-T13 全部通过（132 tests），最终评审 fix 后 clean；PR #3 = feat/history-settings（head 3163f8e）。
+
 | Worktree | 分支 | PR | 内容（任务） | 依赖 |
 |---|---|---|---|---|
 | WT-1 | `feat/backend-core` | #1 | T1-T5：脚手架/模型/数据获取/上下文/LLM 客户端 | main |
@@ -412,6 +416,8 @@ async def test_chat_json_fails_after_retries():
 
 ### Task T6: 分析引擎 Stage 1 生成（文件级并行候选发现）
 
+> ✅ **完成** — commit `d625291`（2026-08-04，implementer: Einstein；review: Banach ✅ Approved）
+
 **Files:**
 - Create: `backend/app/services/analysis_engine.py`
 - Test: `backend/tests/test_analysis_engine.py`
@@ -472,6 +478,8 @@ async def test_stage1_skips_failed_unit():
 
 ### Task T7: 分析引擎 Stage 2 校验（keep/drop/downgrade + 置信度修订）
 
+> ✅ **完成** — commit `6857781`（2026-08-04，implementer: Newton；review: Copernicus ✅ Approved；修正 brief 草案测试顺序矛盾并记录）
+
 **Files:**
 - Modify: `backend/app/services/analysis_engine.py`
 - Test: `backend/tests/test_analysis_engine.py`（追加）
@@ -519,6 +527,8 @@ async def test_stage2_verdicts_applied():
 ---
 
 ### Task T8: 分析引擎 Stage 3 汇总 + 编排器（全流程）
+
+> ✅ **完成** — commit `6f9d64c`（2026-08-04，implementer: Godel；review: Avicenna ✅ Approved）
 
 **Files:**
 - Modify: `backend/app/services/analysis_engine.py`
@@ -568,6 +578,8 @@ async def test_run_analysis_full_pipeline():
 ---
 
 ### Task T9: 任务管理器 + analyze/tasks API（含 SSE）
+
+> ✅ **完成** — commit `fa20cfc`（2026-08-04，implementer: Poincare；review: Carson ✅ Approved；含 T8 评审折入：stats 重置/空 findings 短路/no_analyzable_files）
 
 **Files:**
 - Create: `backend/app/services/task_manager.py`
@@ -638,6 +650,8 @@ async def test_task_events_emitted():
 
 ### Task T10: 历史存储（SQLite CRUD + Markdown 导出）
 
+> ✅ **完成** — commit `01a3d7d`（2026-08-04，implementer: Popper；review: Confucius ✅ Approved）
+
 **Files:**
 - Create: `backend/app/services/history_store.py`
 - Test: `backend/tests/test_history_store.py`
@@ -698,6 +712,8 @@ async def test_export_markdown(tmp_path):
 
 ### Task T11: 凭据与设置（keyring + .env + CLI + settings API）
 
+> ✅ **完成** — commit `c375174`（2026-08-04，implementer: Euclid；review: Mill ✅ Approved）
+
 **Files:**
 - Create: `backend/app/services/credentials.py`, `backend/app/cli.py`
 - Create: `backend/app/api/settings.py`
@@ -745,6 +761,8 @@ def test_get_returns_none_when_unset(monkeypatch):
 
 ### Task T12: 限流 + 错误映射 + 全后端装配
 
+> ✅ **完成** — commit `9f9386f`（2026-08-04，implementer: Hume；review: James ✅ Approved；含 T10/T11 评审折入：aclose/close/test_cli/日志 grep-assert）
+
 **Files:**
 - Create: `backend/app/core/rate_limit.py`
 - Modify: `backend/app/main.py`、`backend/app/api/analyze.py`
@@ -780,6 +798,8 @@ async def test_allow_within_limit():
 ---
 
 ### Task T13: history/settings API 路由（供前端使用）
+
+> ✅ **完成** — commits `ad61075`+`5a962d9`（2026-08-04，implementer: McClintock，fix: Boyle；review: Turing 1 Important（total 真实计数）→ 修复 → Chandrasekhar 复核通过）
 
 **Files:**
 - Create: `backend/app/api/history.py`

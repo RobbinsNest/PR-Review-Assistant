@@ -33,6 +33,12 @@
 
 ## Worktree / PR 映射（每个大模块一个 worktree = 一个 PR）
 
+> ✅ **WT-1 (backend-core) 完成**：T1-T5 全部通过（66 tests），最终评审 clean；PR #1 = feat/backend-core（commit 15dcb66）。
+
+> ✅ **WT-2 (analysis-engine) 完成**：T6-T9 全部通过（126 tests），最终评审 fix 后 clean；PR #2 = feat/analysis-engine（head 0ab4c4c）。
+
+> ✅ **WT-3 (history-settings) 完成**：T10-T13 全部通过（132 tests），最终评审 fix 后 clean；PR #3 = feat/history-settings（head 3163f8e）。
+
 | Worktree | 分支 | PR | 内容（任务） | 依赖 |
 |---|---|---|---|---|
 | WT-1 | `feat/backend-core` | #1 | T1-T5：脚手架/模型/数据获取/上下文/LLM 客户端 | main |
@@ -107,6 +113,8 @@ Makefile
 
 ### Task T1: 后端脚手架 + 配置 + 健康检查
 
+> ✅ **完成** — commit d46a065（2026-08-04，implementer: Parfit；review: Erdos ✅ spec compliant，0 Critical/Important）
+
 **Files:**
 - Create: `backend/pyproject.toml`
 - Create: `backend/app/__init__.py`, `backend/app/main.py`
@@ -146,6 +154,8 @@ def test_health(client):
 ---
 
 ### Task T2: 核心数据模型（pydantic schemas）
+
+> ✅ **完成** — commit e303357（2026-08-04，implementer: Sagan；review: Peirce ✅ spec compliant，0 Critical/Important；M5 settings-cache fixture 已顺手合入）
 
 **Files:**
 - Create: `backend/app/models/__init__.py`, `backend/app/models/pr.py`, `backend/app/models/finding.py`, `backend/app/models/analysis.py`
@@ -198,6 +208,8 @@ def test_analysis_result_accepts_empty_findings():
 ---
 
 ### Task T3: GitHub 数据获取（URL 解析 + REST 客户端）
+
+> ✅ **完成** — commit `76f07d4`（2026-08-04，implementer: Galileo；review: Dewey ✅ Approved；404→repo_not_found 裁决为 plan 既定，pull_not_found 保留备用）
 
 **Files:**
 - Create: `backend/app/services/__init__.py`, `backend/app/services/github_fetcher.py`
@@ -285,6 +297,8 @@ async def test_unauth_rate_limit_message():
 
 ### Task T4: 上下文构建（hunk → 函数/类上下文窗口 + 分片）
 
+> ✅ **完成** — commits `ab8081c`(feat) + `83fa9ab`(fix: Go/Rust+多行签名) + `0bccdc5`(fix: 单行套件回归)（2026-08-04，implementer: Mendel，fix2: Curie；review: Ptolemy 2 Important→修复，Wegener/Goodall 两轮 re-review 通过）
+
 **Files:**
 - Create: `backend/app/services/context_builder.py`
 - Test: `backend/tests/test_context_builder.py`
@@ -293,8 +307,8 @@ async def test_unauth_rate_limit_message():
 - Consumes: `ChangedFile`（T2）
 - Produces:
   - `extract_hunk_ranges(diff: str) -> list[tuple[int, int]]`：解析 unified diff 中每个 hunk 的新文件行区间（`@@ -a,b +c,d @@` → `(c, c+d-1)`；无上下文行时按首行）。
-  - `find_enclosing_function(content: str, line: int, language: str = "python") -> tuple[int, int]`：返回含 `line`（1-based）的最小函数/类定义区间 `(start, end)`；启发式：从 `line` 向上找 `def/class/function` 关键字行，向下用缩进/花括号配对找结束；找不到返回 `(line, line)`。
-  - `build_analysis_unit(file: ChangedFile, budget_in: int = 8000) -> AnalysisUnit`：`AnalysisUnit = TypedDict { file_path, diff, context: str, truncated: bool }`；上下文 = 所有 hunk 所在函数的并集文本，超 budget 时按 hunk 分片返回多个 unit（每片 ≤ budget）。
+  - `find_enclosing_function(content: str, line: int, language: str = "python") -> tuple[int, int]`：返回含 `line`（1-based）的最小函数/类定义区间 `(start, end)`。策略（**裁决明确，T4 评审修正**）：从 `line` 向上找函数/类定义行，关键字覆盖 `def|class|function|func|fn`（python/go/rust/js/ts 均支持）；向下找结束——**python 用缩进法**，`{`/`}` 语言（js/ts/go/rust 等）用**括号配对**，未知语言 fallback ±20 行；找不到返回 `(line, line)`。注意 python 多行签名（`def foo(\n a,\n b\n):`）须把签名延续行视为头部，直到 `:` 结尾行后再判断函数体缩进。
+  - `build_analysis_unit(file: ChangedFile, budget_in: int = 8000) -> list[AnalysisUnit]`：返回 unit **列表**（`AnalysisUnit = TypedDict { file_path, diff, context: str, truncated: bool }`；签名修正，T4 评审裁决）；上下文 = 所有 hunk 所在函数的并集文本（带行号前缀），超 budget 时按 hunk 分片返回多个 unit（每片 ≤ budget，`truncated=True` 表示文件超预算）。
   - `estimate_tokens(text: str) -> int`：粗略估算（`len(text) // 4`）。
 
 - [ ] **Step 1: 写失败测试 `test_context_builder.py`**
@@ -332,6 +346,8 @@ def test_build_analysis_unit_includes_context():
 ---
 
 ### Task T5: LLM 客户端（OpenAI 兼容 + JSON schema 校验 + 重试）
+
+> ✅ **完成** — commit `77f57fc`（2026-08-04，implementer: Jason；review: Nash ✅ Approved，0 Critical/Important）
 
 **Files:**
 - Create: `backend/app/services/llm_client.py`
@@ -400,6 +416,8 @@ async def test_chat_json_fails_after_retries():
 
 ### Task T6: 分析引擎 Stage 1 生成（文件级并行候选发现）
 
+> ✅ **完成** — commit `d625291`（2026-08-04，implementer: Einstein；review: Banach ✅ Approved）
+
 **Files:**
 - Create: `backend/app/services/analysis_engine.py`
 - Test: `backend/tests/test_analysis_engine.py`
@@ -460,6 +478,8 @@ async def test_stage1_skips_failed_unit():
 
 ### Task T7: 分析引擎 Stage 2 校验（keep/drop/downgrade + 置信度修订）
 
+> ✅ **完成** — commit `6857781`（2026-08-04，implementer: Newton；review: Copernicus ✅ Approved；修正 brief 草案测试顺序矛盾并记录）
+
 **Files:**
 - Modify: `backend/app/services/analysis_engine.py`
 - Test: `backend/tests/test_analysis_engine.py`（追加）
@@ -507,6 +527,8 @@ async def test_stage2_verdicts_applied():
 ---
 
 ### Task T8: 分析引擎 Stage 3 汇总 + 编排器（全流程）
+
+> ✅ **完成** — commit `6f9d64c`（2026-08-04，implementer: Godel；review: Avicenna ✅ Approved）
 
 **Files:**
 - Modify: `backend/app/services/analysis_engine.py`
@@ -556,6 +578,8 @@ async def test_run_analysis_full_pipeline():
 ---
 
 ### Task T9: 任务管理器 + analyze/tasks API（含 SSE）
+
+> ✅ **完成** — commit `fa20cfc`（2026-08-04，implementer: Poincare；review: Carson ✅ Approved；含 T8 评审折入：stats 重置/空 findings 短路/no_analyzable_files）
 
 **Files:**
 - Create: `backend/app/services/task_manager.py`
@@ -626,6 +650,8 @@ async def test_task_events_emitted():
 
 ### Task T10: 历史存储（SQLite CRUD + Markdown 导出）
 
+> ✅ **完成** — commit `01a3d7d`（2026-08-04，implementer: Popper；review: Confucius ✅ Approved）
+
 **Files:**
 - Create: `backend/app/services/history_store.py`
 - Test: `backend/tests/test_history_store.py`
@@ -686,6 +712,8 @@ async def test_export_markdown(tmp_path):
 
 ### Task T11: 凭据与设置（keyring + .env + CLI + settings API）
 
+> ✅ **完成** — commit `c375174`（2026-08-04，implementer: Euclid；review: Mill ✅ Approved）
+
 **Files:**
 - Create: `backend/app/services/credentials.py`, `backend/app/cli.py`
 - Create: `backend/app/api/settings.py`
@@ -733,6 +761,8 @@ def test_get_returns_none_when_unset(monkeypatch):
 
 ### Task T12: 限流 + 错误映射 + 全后端装配
 
+> ✅ **完成** — commit `9f9386f`（2026-08-04，implementer: Hume；review: James ✅ Approved；含 T10/T11 评审折入：aclose/close/test_cli/日志 grep-assert）
+
 **Files:**
 - Create: `backend/app/core/rate_limit.py`
 - Modify: `backend/app/main.py`、`backend/app/api/analyze.py`
@@ -768,6 +798,8 @@ async def test_allow_within_limit():
 ---
 
 ### Task T13: history/settings API 路由（供前端使用）
+
+> ✅ **完成** — commits `ad61075`+`5a962d9`（2026-08-04，implementer: McClintock，fix: Boyle；review: Turing 1 Important（total 真实计数）→ 修复 → Chandrasekhar 复核通过）
 
 **Files:**
 - Create: `backend/app/api/history.py`
@@ -882,3 +914,5 @@ async def test_allow_within_limit():
 - **SPEC 覆盖**：M1↔T3/T4；M2↔T4；M3↔T6/T7/T8；M4↔T9；M5↔T10/T13；M6↔T11/T12；M7↔T14/T15/T16；凭据/分发↔T11/T17；CI↔T17；SSE↔T9/T15；示例 PR↔T15/T17；安全（掩码/脱敏/不落库）↔T3/T9/T11/T12 内约束。
 - **类型一致性**：`AnalysisUnit`（T4 定义，T6/T7 消费）；`FindingCandidate→Finding`（T2→T6→T7）；`TaskState` 字段（T9 定义，前端 T14 消费）；`AnalysisResult`（T2→T8→T10）。所有 schema 名以各 Task 的 Produces 为准。
 - **并行性**：WT-2（T6-T9）与 WT-3（T10-T13）都依赖 WT-1，二者在 WT-1 合并后可并行开发；WT-4 依赖 API 契约（T9/T13 的端点路径与请求/响应形状），可先行实现 UI 骨架。
+
+

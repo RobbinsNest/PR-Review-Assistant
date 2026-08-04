@@ -1,12 +1,11 @@
-"""FastAPI application entrypoint for the PR Review Assistant backend.
+﻿"""FastAPI application entrypoint for the PR Review Assistant backend.
 
 Startup (lifespan) wires structured logging, creates the SQLite parent dir
 and the shared ``HistoryStore``, and instantiates the per-app rate limiter.
 Shutdown closes the store and any shared HTTP clients so the long-running
-process leaks no connection pools.  All routers merged so far (health,
-settings, history) are registered; the analyze router (T9) joins in its own
-worktree.  AppError responses follow the ``ERROR_HTTP`` table in
-``app/core/errors.py``.
+process leaks no connection pools.  All routers are registered here:
+health, settings, history (WT-3) and analyze (WT-2).  AppError responses
+follow the ``ERROR_HTTP`` table in ``app/core/errors.py``.
 """
 
 from contextlib import asynccontextmanager
@@ -16,6 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.analyze import router as analyze_router
 from app.api.health import router as health_router
 from app.api.history import router as history_router
 from app.api.settings import router as settings_router
@@ -24,6 +24,7 @@ from app.core.errors import AppError
 from app.core.logging import setup_logging
 from app.core.rate_limit import RateLimiter
 from app.services.history_store import HistoryStore
+from app.services.task_manager import TaskManager
 
 
 @asynccontextmanager
@@ -67,7 +68,11 @@ if _cors_origins:
 app.include_router(health_router)
 app.include_router(settings_router)
 app.include_router(history_router)
-# Seam: analyze router (T9) merges from its worktree.
+app.include_router(analyze_router)
+
+#: In-memory async task registry backing /api/analyze and /api/tasks (T9).
+#: The app keeps exactly one instance; tests replace it with a fresh one.
+app.state.task_manager = TaskManager()
 
 
 @app.exception_handler(AppError)
