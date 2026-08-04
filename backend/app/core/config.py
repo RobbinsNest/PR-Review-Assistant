@@ -1,6 +1,5 @@
 """Application settings loaded from environment variables."""
 
-import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,14 +26,21 @@ class Settings(BaseSettings):
     example_pr: str = "owner/repo/pull/1"
     database_path: str = "data/analyses.db"
     rate_limit_per_min: int = 10
+    #: Comma-separated CORS allowlist; empty means same-origin only.
+    cors_origins: str = ""
 
     def api_key(self) -> str | None:
-        """Return the LLM API key from the configured environment variable.
+        """Return the configured LLM API key or ``None``.
 
-        Keyring-backed lookup lands in T11; for now the environment value
-        (e.g. ``LLM_API_KEY``) is returned directly.
+        Resolved through ``CredentialStore.get_llm_api_key()`` (OS keyring
+        -> ``LLM_API_KEY`` env var -> ``backend/.env``) so keys set via the
+        CLI (``key set``) or the settings API are honored by the analysis
+        path.  The import is deferred to keep ``app.core`` importable
+        without pulling in the keyring-backed services layer at module load.
         """
-        return os.getenv(self.llm_api_key_env)
+        from app.services.credentials import CredentialStore
+
+        return CredentialStore.get_llm_api_key()
 
 
 @lru_cache(maxsize=1)

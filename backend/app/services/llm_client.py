@@ -42,6 +42,10 @@ class LLMClient:
             timeout=timeout,
         )
 
+    async def aclose(self) -> None:
+        """Close the underlying AsyncClient, releasing its connection pool."""
+        await self._client.aclose()
+
     async def chat_json(
         self,
         messages: list[dict],

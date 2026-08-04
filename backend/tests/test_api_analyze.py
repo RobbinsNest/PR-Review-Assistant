@@ -9,6 +9,7 @@ import pytest
 from app.main import app
 from app.models.analysis import AnalysisResult, AnalysisSummary
 from app.models.pr import PRContext, PRInfo
+from app.core.rate_limit import RateLimiter
 from app.services.task_manager import TaskManager
 
 TERMINAL = ("succeeded", "failed", "cancelled")
@@ -60,7 +61,7 @@ def task_client(client):
     app.state.task_manager = TaskManager()
     app.state.analysis_engine = FakeEngine()
     app.state.github_fetcher = FakeFetcher()
-    app.state.rate_limiter = None  # fresh rate-limit window per test
+    app.state.rate_limiter = RateLimiter(limit=1000)  # fresh rate-limit window per test
     yield client
     app.state.task_manager = TaskManager()
     app.state.analysis_engine = None
