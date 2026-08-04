@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens for the PR Review Assistant.
+ *
+ * This file is the single source of truth for the design contract (see
+ * DESIGN.md at the repo root). Tailwind consumes these variables through
+ * tailwind.config.js (theme.extend). Color variables are space-separated
+ * RGB triplets so `rgb(var(--x) / <alpha-value>)` supports opacity.
+ */
+
+:root {
+  /* ---- Brand (primary) ---- */
+  --color-primary: 59 130 246; /* blue-500 */
+  --color-primary-strong: 37 99 235; /* blue-600 */
+  --color-primary-weak: 239 246 255; /* blue-50 */
+
+  /* ---- Surfaces ---- */
+  --color-surface: 255 255 255; /* white */
+  --color-surface-subtle: 248 250 252; /* slate-50 */
+
+  /* ---- Text (ink) ---- */
+  --color-ink: 15 23 42; /* slate-900 */
+  --color-ink-secondary: 71 85 105; /* slate-600 */
+  --color-ink-muted: 148 163 184; /* slate-400 */
+
+  /* ---- Borders ---- */
+  --color-line: 226 232 240; /* slate-200 */
+  --color-line-strong: 203 213 225; /* slate-300 */
+
+  /* ---- Semantic status ---- */
+  --color-success: 22 163 74; /* green-600 */
+  --color-warning: 217 119 6; /* amber-600 */
+  --color-error: 220 38 38; /* red-600 */
+  --color-info: 37 99 235; /* blue-600 */
+
+  /* ---- Finding severity ---- */
+  --color-severity-critical: 220 38 38; /* red-600 */
+  --color-severity-major: 234 88 12; /* orange-600 */
+  --color-severity-minor: 202 138 4; /* yellow-600 */
+  --color-severity-nit: 100 116 139; /* slate-500 */
+
+  /* ---- Spacing (4px base scale) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---- Radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+}
+
+body {
+  @apply bg-surface-subtle text-ink antialiased;
+}
