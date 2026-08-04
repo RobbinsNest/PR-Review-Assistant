@@ -38,6 +38,20 @@ async def test_keys_are_isolated():
     assert await rl.allow("ip-b") is True
 
 
+@pytest.mark.asyncio
+async def test_expired_window_is_popped_after_pruning():
+    """A fully expired window is dropped from `_timestamps` (no unbounded growth)."""
+    rl = RateLimiter(limit=1, window_sec=1)
+    assert await rl.allow("ip-a") is True
+    original = rl._timestamps["ip-a"]
+    await asyncio.sleep(1.05)
+    # The next call prunes the expired window; the empty deque is popped and
+    # replaced with a fresh window instead of lingering in the map forever.
+    assert await rl.allow("ip-a") is True
+    assert rl._timestamps["ip-a"] is not original
+    assert len(rl._timestamps["ip-a"]) == 1
+
+
 def test_rate_limit_dependency_returns_429(tmp_path, monkeypatch):
     """Exceeding the per-minute limit on a protected endpoint yields 429."""
     store: dict = {}

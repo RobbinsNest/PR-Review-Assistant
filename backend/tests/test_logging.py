@@ -26,12 +26,16 @@ async def test_key_never_appears_in_log_output(caplog):
         )
     )
     client = LLMClient("https://api.deepseek.com", secret, "deepseek-v4-flash")
-    with caplog.at_level(logging.INFO):
-        with pytest.raises(AppError) as excinfo:
-            await client.chat_json([{"role": "user", "content": "ping"}], _Ping)
-    assert secret not in caplog.text
-    assert secret not in excinfo.value.message
-    assert "llm request status=401" in caplog.text
+    try:
+        with caplog.at_level(logging.INFO):
+            with pytest.raises(AppError) as excinfo:
+                await client.chat_json([{"role": "user", "content": "ping"}], _Ping)
+        assert secret not in caplog.text
+        assert secret not in excinfo.value.message
+        assert "llm request status=401" in caplog.text
+    finally:
+        # Release the per-test HTTP client so no unclosed-resource warning.
+        await client.aclose()
 
 
 def test_app_startup_wires_logging(client):

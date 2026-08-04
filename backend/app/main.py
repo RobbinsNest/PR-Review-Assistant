@@ -4,8 +4,8 @@ Startup (lifespan) wires structured logging, creates the SQLite parent dir
 and the shared ``HistoryStore``, and instantiates the per-app rate limiter.
 Shutdown closes the store and any shared HTTP clients so the long-running
 process leaks no connection pools.  All routers merged so far (health,
-settings) are registered; the analyze (T9) and history (T13) routers join in
-their own worktrees.  AppError responses follow the ``ERROR_HTTP`` table in
+settings, history) are registered; the analyze router (T9) joins in its own
+worktree.  AppError responses follow the ``ERROR_HTTP`` table in
 ``app/core/errors.py``.
 """
 
@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
+from app.api.history import router as history_router
 from app.api.settings import router as settings_router
 from app.core.config import get_settings
 from app.core.errors import AppError
@@ -32,10 +33,13 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
     store = HistoryStore(settings.database_path)
-    await store.init()
-    app.state.history_store = store
-    app.state.rate_limiter = RateLimiter(limit=settings.rate_limit_per_min)
+    # init() opens the SQLite connection; it lives inside the try so the
+    # connection is always closed even when init() itself raises, and a
+    # failed startup leaks no DB handle.
     try:
+        await store.init()
+        app.state.history_store = store
+        app.state.rate_limiter = RateLimiter(limit=settings.rate_limit_per_min)
         yield
     finally:
         await store.close()
@@ -58,7 +62,8 @@ if _cors_origins:
 
 app.include_router(health_router)
 app.include_router(settings_router)
-# Seam: analyze router (T9) and history router (T13) merge from their worktrees.
+app.include_router(history_router)
+# Seam: analyze router (T9) merges from its worktree.
 
 
 @app.exception_handler(AppError)
