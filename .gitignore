@@ -44,3 +44,5 @@ Thumbs.db
 # ---- shared venv ----
 .venv-shared/
 
+.venv-shared2/
+
