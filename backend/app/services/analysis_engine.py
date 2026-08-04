@@ -1,24 +1,35 @@
-"""T6 analysis engine Stage 1: file-level parallel candidate generation.
+"""T6/T7 analysis engine: Stage 1 candidate generation + Stage 2 verification.
 
-For every :class:`AnalysisUnit` (T4) the engine issues one LLM call via
-``LLMClient.chat_json`` (T5) asking for raw candidate findings, then calibrates
-each candidate's ``line_start``/``line_end`` onto the diff hunk changed-line
-ranges.  Candidates whose range does not intersect any changed line are dropped
-and counted in ``dropped_by_scope`` so the verification stage never sees
-out-of-scope findings.  A failed unit (after the LLM client's own retries) is
-recorded as skipped and the remaining units continue.
+Stage 1 (``stage1_generate``) issues one LLM call per :class:`AnalysisUnit`
+(T4) via ``LLMClient.chat_json`` (T5) asking for raw candidate findings, then
+calibrates each candidate's ``line_start``/``line_end`` onto the diff hunk
+changed-line ranges.  Candidates whose range does not intersect any changed
+line are dropped and counted in ``dropped_by_scope`` so the verification stage
+never sees out-of-scope findings.  A failed unit (after the LLM client's own
+retries) is recorded as skipped and the remaining units continue.
+
+Stage 2 (``stage2_verify``) verifies the surviving candidates per unit with
+one LLM call asking for a keep/drop/downgrade verdict per candidate, then
+applies deterministic gates: a candidate whose ``file_path`` does not match
+the unit, or whose range contains no true changed line (an actual ``+``/``-``
+line, not just the hunk span), is dropped; ``downgrade`` lowers severity one
+level and the verification confidence replaces the candidate's confidence.
+Survivors become the final :class:`Finding` list.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 from collections.abc import Callable
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.errors import AppError
-from app.models.finding import FindingCandidate
+from app.models.finding import Finding, FindingCandidate, Severity
 from app.services.context_builder import (
     AnalysisUnit,
     estimate_tokens,
@@ -28,8 +39,9 @@ from app.services.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
 
-#: Stage label reported through the ``progress`` callback during Stage 1.
+#: Stage labels reported through the ``progress`` callback.
 STAGE_ANALYZING = "analyzing"
+STAGE_VERIFYING = "verifying"
 
 #: Fixed generation instructions.  Always sent as the system message so the
 #: model sees the exact contract (enums, confidence range, changed-line scope,
@@ -60,6 +72,35 @@ TRUNCATED_COVERAGE_NOTE = (
     "file; findings are partial coverage of the changed lines."
 )
 
+#: Fixed verification instructions.  Every candidate is judged on three
+#: questions (introduced by this change / within the changed lines /
+#: consistent with the context), with a deliberate bias toward ``drop`` over
+#: ``keep`` to control false positives.
+VERIFY_SYSTEM_PROMPT = (
+    "You are a verification reviewer for a pull request diff.\n"
+    "For each candidate finding (identified by its index) answer three "
+    "questions:\n"
+    "1. Was the issue introduced by THIS change, or is it pre-existing or "
+    "unrelated?\n"
+    "2. Does the finding's line range fall within the changed lines of the "
+    "diff?\n"
+    "3. Is the finding consistent with the surrounding context (no "
+    "contradiction)?\n"
+    "Decide a verdict per candidate:\n"
+    "- keep: the issue is real, introduced by this change, and located in the "
+    "changed lines\n"
+    "- drop: the issue is pre-existing, unrelated, outside the changed lines, "
+    "or otherwise not actionable\n"
+    "- downgrade: the issue is real but its impact is lower than stated\n"
+    "When in doubt, prefer drop over keep - it is better to miss a low-value "
+    "issue than to report a false positive.\n"
+    "Set confidence to a float in [0, 1] reflecting how sure you are of the "
+    "verdict, and give a short reason for every candidate.\n"
+    "Output a JSON object with a single key \"results\": a list of objects "
+    "with fields index, verdict, confidence, reason.\n"
+    "Output pure JSON and nothing else."
+)
+
 
 class GenerateOutput(BaseModel):
     """Raw LLM output for one analysis unit."""
@@ -69,6 +110,36 @@ class GenerateOutput(BaseModel):
 
 #: Pydantic schema validated against the LLM output in Stage 1.
 GENERATE_SCHEMA = GenerateOutput
+
+
+class VerifyItem(BaseModel):
+    """Per-candidate verdict returned by the Stage 2 verification call."""
+
+    index: int
+    verdict: Literal["keep", "drop", "downgrade"]
+    confidence: float = Field(ge=0.0, le=1.0)
+    reason: str
+
+
+class VerifyOutput(BaseModel):
+    """LLM output for one unit's verification call."""
+
+    results: list[VerifyItem]
+
+
+#: Pydantic schema validated against the LLM output in Stage 2.
+VERIFY_SCHEMA = VerifyOutput
+
+#: Severity mapping applied when the verification verdict is ``downgrade``.
+_DOWNGRADE_SEVERITY: dict[Severity, Severity] = {
+    Severity.critical: Severity.major,
+    Severity.major: Severity.minor,
+    Severity.minor: Severity.nit,
+    Severity.nit: Severity.nit,
+}
+
+#: Unified-diff hunk header; captures the new-side start line (``+c``).
+_HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
 
 def build_generate_messages(
@@ -125,6 +196,81 @@ async def generate_for_unit(
     return calibrated
 
 
+def build_verify_messages(
+    unit: AnalysisUnit, candidates: list[FindingCandidate]
+) -> list[dict]:
+    """Build the system/user message pair for one unit's verification call.
+
+    The system message carries the three per-candidate questions (introduced
+    by this change / within the changed lines / consistent with the context)
+    and the prefer-drop-over-keep rule.  The user message carries the diff,
+    context, and the candidates serialized as JSON with their indices.
+    """
+    candidates_json = json.dumps(
+        [
+            {"index": index, **candidate.model_dump(mode="json")}
+            for index, candidate in enumerate(candidates)
+        ],
+        ensure_ascii=False,
+    )
+    return [
+        {"role": "system", "content": VERIFY_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                f"File: {unit['file_path']}\n\n"
+                f"Diff:\n{unit['diff']}\n\n"
+                f"Context (line-numbered):\n{unit['context']}\n\n"
+                f"Candidates (JSON):\n{candidates_json}"
+            ),
+        },
+    ]
+
+
+def true_changed_lines(diff: str) -> set[int]:
+    """Return the new-side line numbers that are actually added/removed lines.
+
+    Context (unchanged) lines are excluded, so findings anchored on
+    context-only lines are rejected by verification instead of being accepted
+    merely because they fall inside a hunk span.  An added line contributes
+    its new-side line number; a removed line contributes its new-side position
+    (the deletion point).  Returns an empty set when the diff carries no
+    parseable ``+``/``-`` body lines, in which case callers fall back to the
+    hunk spans.
+    """
+    changed: set[int] = set()
+    new_pos: int | None = None
+    for line in diff.splitlines():
+        header = _HUNK_HEADER_RE.match(line)
+        if header:
+            new_pos = int(header.group(1))
+            continue
+        if new_pos is None:
+            continue  # file header (---/+++ ...) before the first hunk
+        if line.startswith("+"):
+            changed.add(new_pos)
+            new_pos += 1
+        elif line.startswith("-"):
+            changed.add(new_pos)
+        elif line.startswith(" "):
+            new_pos += 1
+        # "\ No newline at end of file" and other markers shift nothing.
+    return changed
+
+
+def _verification_changed_lines(diff: str) -> set[int]:
+    """Changed-line set used by verification.
+
+    Prefers the true ``+``/``-`` line membership; when the diff body is not
+    parseable (e.g. a header-only hunk) falls back to the hunk spans so
+    verification never drops every candidate on an empty parse.
+    """
+    changed = true_changed_lines(diff)
+    if changed:
+        return changed
+    return _changed_lines(extract_hunk_ranges(diff))
+
+
 class AnalysisEngine:
     """Orchestrates the analysis pipeline stages over analysis units."""
 
@@ -133,7 +279,7 @@ class AnalysisEngine:
             raise ValueError("concurrency must be >= 1")
         self.llm = llm
         self.concurrency = concurrency
-        #: Cross-stage counters; consumed by T7/T8 for meta reporting.
+        #: Cross-stage counters; consumed by T8 for meta reporting.
         self.stats: dict = {
             "dropped_by_scope": 0,
             "skipped_units": 0,
@@ -190,6 +336,93 @@ class AnalysisEngine:
         gathered = await asyncio.gather(*(worker(unit) for unit in units))
         return [pair for pair in gathered if pair is not None]
 
+    async def verify_candidates(
+        self, unit: AnalysisUnit, candidates: list[FindingCandidate]
+    ) -> list[tuple[FindingCandidate, str]]:
+        """Verify one unit's candidates; return surviving ``(candidate, verdict)`` pairs.
+
+        Calls ``chat_json`` with :data:`VERIFY_SCHEMA`, then applies
+        deterministic gates before the model verdict: a candidate whose
+        ``file_path`` does not match the unit, or whose range contains no true
+        changed line (an actual ``+``/``-`` line), is dropped.  Survivors get
+        their confidence replaced by the verification output, and their
+        severity lowered one level when the verdict is ``downgrade``; ``drop``
+        removes the candidate.  A candidate missing from the LLM results is
+        conservatively dropped (prefer a miss over a false positive).
+        """
+        if not candidates:
+            return []
+        messages = build_verify_messages(unit, candidates)
+        output = await self.llm.chat_json(messages, VERIFY_SCHEMA)
+        verdict_by_index = {item.index: item for item in output.results}
+        changed_lines = _verification_changed_lines(unit["diff"])
+        verified: list[tuple[FindingCandidate, str]] = []
+        for index, candidate in enumerate(candidates):
+            item = verdict_by_index.get(index)
+            if item is None:
+                continue  # no verdict produced for this candidate: drop
+            if candidate.file_path != unit["file_path"]:
+                continue  # deterministic gate: wrong file
+            clipped = _clip_to_line_set(candidate, changed_lines)
+            if clipped is None:
+                continue  # deterministic gate: no true changed line in range
+            if item.verdict == "drop":
+                continue
+            update: dict = {"confidence": item.confidence}
+            if item.verdict == "downgrade":
+                update["severity"] = _DOWNGRADE_SEVERITY[clipped.severity]
+            verified.append((clipped.model_copy(update=update), item.verdict))
+        return verified
+
+    async def stage2_verify(
+        self,
+        pairs: list[tuple[AnalysisUnit, list[FindingCandidate]]],
+        progress: Callable[[str, int, int], None] | None = None,
+    ) -> list[Finding]:
+        """Verify every unit's candidates in parallel and collect findings.
+
+        Concurrency is bounded by an ``asyncio.Semaphore``.  A unit that fails
+        (including :class:`AppError`) contributes no findings - unverified
+        candidates must not reach the result - while the remaining units still
+        complete.  ``progress`` is called as ``(stage, completed, total)``
+        after each unit finishes (success or failure), with stage
+        ``verifying``.
+        """
+        semaphore = asyncio.Semaphore(self.concurrency)
+        total = len(pairs)
+        completed = 0
+
+        async def worker(
+            pair: tuple[AnalysisUnit, list[FindingCandidate]],
+        ) -> list[Finding]:
+            nonlocal completed
+            unit, candidates = pair
+            async with semaphore:
+                try:
+                    verified = await self.verify_candidates(unit, candidates)
+                except Exception as exc:  # per-unit isolation: unverified findings must not leak
+                    if isinstance(exc, AppError):
+                        logger.warning(
+                            "stage2 dropped unit=%s code=%s",
+                            unit["file_path"],
+                            exc.code,
+                        )
+                    else:
+                        logger.warning(
+                            "stage2 dropped unit=%s error=%s",
+                            unit["file_path"],
+                            exc.__class__.__name__,
+                        )
+                    return []
+                finally:
+                    completed += 1
+                    if progress is not None:
+                        progress(STAGE_VERIFYING, completed, total)
+                return [_to_finding(candidate) for candidate, _ in verified]
+
+        gathered = await asyncio.gather(*(worker(pair) for pair in pairs))
+        return [finding for findings in gathered for finding in findings]
+
 
 def _changed_lines(ranges: list[tuple[int, int]]) -> set[int]:
     """Expand hunk new-file ranges into a set of changed line numbers."""
@@ -207,11 +440,26 @@ def _clip_to_changed_lines(
     Endpoints of the clipped range always land on changed lines, so the
     ``line_start``/``line_end``-within-changed-lines invariant holds.
     """
-    overlap = [
-        line
-        for line in range(candidate.line_start, candidate.line_end + 1)
-        if line in changed_lines
-    ]
+    return _clip_to_line_set(candidate, changed_lines)
+
+
+def _clip_to_line_set(
+    candidate: FindingCandidate, lines: set[int]
+) -> FindingCandidate | None:
+    """Clip a candidate range to ``lines``; None when no overlap.
+
+    The search window is bounded by ``min(lines)``/``max(lines)`` so a
+    pathological range (e.g. ``line_end = 1e9``) never materializes a huge
+    range.  Endpoints of the clipped range always land on ``lines``.
+    """
+    if not lines:
+        return None
+    lower, upper = min(lines), max(lines)
+    start = max(candidate.line_start, lower)
+    end = min(candidate.line_end, upper)
+    if start > end:
+        return None
+    overlap = [line for line in range(start, end + 1) if line in lines]
     if not overlap:
         return None
     new_start, new_end = overlap[0], overlap[-1]
@@ -220,6 +468,11 @@ def _clip_to_changed_lines(
     return candidate.model_copy(
         update={"line_start": new_start, "line_end": new_end}
     )
+
+
+def _to_finding(candidate: FindingCandidate) -> Finding:
+    """Promote a verified candidate to a final :class:`Finding` (id/verified)."""
+    return Finding.model_validate(candidate.model_dump())
 
 
 def _scaffolding_tokens() -> int:
