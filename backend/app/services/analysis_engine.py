@@ -364,6 +364,7 @@ class AnalysisEngine:
         self,
         units: list[AnalysisUnit],
         progress: Callable[[str, int, int], None] | None = None,
+        stats: dict | None = None,
     ) -> list[tuple[AnalysisUnit, list[FindingCandidate]]]:
         """Generate candidates for every unit in parallel.
 
@@ -372,7 +373,13 @@ class AnalysisEngine:
         the result; the remaining units still complete.  ``progress`` is called
         as ``(stage, completed, total)`` after each unit finishes (success or
         skip), with stage ``analyzing``.
+
+        ``stats`` is the run-local counter dict threaded from
+        :meth:`run_analysis`; it defaults to ``self.stats`` for standalone
+        callers.  Stage 1 only ever mutates this dict, so overlapping runs on
+        a shared engine never corrupt each other's counters.
         """
+        run_stats = self.stats if stats is None else stats
         semaphore = asyncio.Semaphore(self.concurrency)
         total = len(units)
         completed = 0
@@ -384,11 +391,11 @@ class AnalysisEngine:
             async with semaphore:
                 try:
                     findings = await generate_for_unit(
-                        self.llm, unit, stats=self.stats
+                        self.llm, unit, stats=run_stats
                     )
                     return unit, findings
                 except Exception as exc:  # per-unit isolation: one bad unit must not abort the run
-                    self.stats["skipped_units"] += 1
+                    run_stats["skipped_units"] += 1
                     if isinstance(exc, AppError):
                         logger.warning(
                             "stage1 skipped unit=%s code=%s",
@@ -538,17 +545,27 @@ class AnalysisEngine:
         findings.  ``meta`` carries ``stage_durations``, ``token_estimate``,
         ``skipped_files``, and the T6 cross-stage counters
         (``dropped_by_scope``/``skipped_units``/``scaffolding_tokens``).
+        The counters are run-local: concurrent runs on the same engine each
+        carry their own dict, snapshotted into ``self.stats`` only at the end
+        of the run.
         """
         stage_durations: dict[str, float] = {}
         skipped_files: list[str] = []
         units: list[AnalysisUnit] = []
 
-        # Cross-run isolation: each run starts from clean counters so a second
-        # run on the same engine never carries stale dropped_by_scope /
-        # skipped_units; the fixed scaffolding token estimate (set once in
-        # __init__) is preserved.
-        self.stats["dropped_by_scope"] = 0
-        self.stats["skipped_units"] = 0
+        # Per-run isolation: stats is a run-LOCAL dict threaded through
+        # stage1_generate -> generate_for_unit.  With the engine shared by
+        # concurrent tasks, a shared dict would let overlapping runs corrupt
+        # each other's dropped_by_scope / skipped_units counters.  The local
+        # dict is snapshotted into self.stats at the END of the run (the
+        # test-facing API); self.stats itself is never mutated mid-run.  The
+        # fixed scaffolding token estimate (set once in __init__) is carried
+        # over unchanged.
+        stats: dict = {
+            "dropped_by_scope": 0,
+            "skipped_units": 0,
+            "scaffolding_tokens": self.stats["scaffolding_tokens"],
+        }
 
         # -- building: T4 units per file; unbuildable files are skipped ------
         building_started = time.monotonic()
@@ -589,7 +606,7 @@ class AnalysisEngine:
 
         # -- analyzing: Stage 1 candidate generation ------------------------
         analyzing_started = time.monotonic()
-        pairs = await self.stage1_generate(units, progress=progress)
+        pairs = await self.stage1_generate(units, progress=progress, stats=stats)
         stage_durations["analyzing"] = round(
             time.monotonic() - analyzing_started, 4
         )
@@ -634,20 +651,24 @@ class AnalysisEngine:
         meta: dict = {
             "stage_durations": stage_durations,
             "token_estimate": _token_estimate(
-                units, self.stats["scaffolding_tokens"]
+                units, stats["scaffolding_tokens"]
             ),
             "skipped_files": skipped_files,
-            "dropped_by_scope": self.stats["dropped_by_scope"],
-            "skipped_units": self.stats["skipped_units"],
-            "scaffolding_tokens": self.stats["scaffolding_tokens"],
+            "dropped_by_scope": stats["dropped_by_scope"],
+            "skipped_units": stats["skipped_units"],
+            "scaffolding_tokens": stats["scaffolding_tokens"],
             "partial": bool(
                 skipped_files
-                or self.stats["skipped_units"]
+                or stats["skipped_units"]
                 or aggregate_failed
             ),
         }
         if aggregate_failed:
             meta["aggregate_failed"] = True
+        # Snapshot the run-local counters into the test-facing self.stats API.
+        self.stats["dropped_by_scope"] = stats["dropped_by_scope"]
+        self.stats["skipped_units"] = stats["skipped_units"]
+        self.stats["scaffolding_tokens"] = stats["scaffolding_tokens"]
         return AnalysisResult(summary=summary, findings=findings, meta=meta)
 
 

@@ -1,4 +1,6 @@
-﻿"""Analysis-engine tests: T6 Stage 1 generation, T7 Stage 2 verification, T8 Stage 3 aggregation + orchestrator."""
+"""Analysis-engine tests: T6 Stage 1 generation, T7 Stage 2 verification, T8 Stage 3 aggregation + orchestrator."""
+
+import asyncio
 
 from app.services.analysis_engine import (
     AnalysisEngine,
@@ -607,3 +609,40 @@ async def test_run_analysis_end_to_end_with_findings():
     assert result.summary.title == "Review title"
     assert result.summary.key_points == ["k1"]
     assert llm.calls == 3  # generate -> verify -> aggregate
+
+
+async def test_run_analysis_concurrent_runs_isolate_stats():
+    # Two overlapping runs on ONE engine must each report only their own meta
+    # counters.  A shared stats dict would leak dropped_by_scope / skipped_units
+    # across the concurrent runs.
+    class OverlappingLLM:
+        def __init__(self):
+            self.generation_entered = 0
+            self.both_entered = asyncio.Event()
+
+        async def chat_json(self, messages, schema, temperature=0.2):
+            # Barrier: both runs' stage1 calls must be in flight before either
+            # returns, so any shared-dict corruption becomes visible in meta.
+            self.generation_entered += 1
+            if self.generation_entered == 2:
+                self.both_entered.set()
+            await self.both_entered.wait()
+            user = messages[1]["content"]
+            if "a.py" in user:
+                # Candidate anchored outside the changed lines -> dropped.
+                return schema.model_validate(
+                    {"findings": [finding(line_start=10, line_end=12)]}
+                )
+            raise RuntimeError("boom")  # unit fails -> skipped_units
+
+    engine = AnalysisEngine(OverlappingLLM(), concurrency=2)
+    ctx_a = PRContext(info=pr_info(), files=[changed_file(path="a.py")])
+    ctx_b = PRContext(info=pr_info(), files=[changed_file(path="b.py")])
+    result_a, result_b = await asyncio.gather(
+        engine.run_analysis(ctx_a),
+        engine.run_analysis(ctx_b),
+    )
+    assert result_a.meta["dropped_by_scope"] == 1
+    assert result_a.meta["skipped_units"] == 0
+    assert result_b.meta["dropped_by_scope"] == 0
+    assert result_b.meta["skipped_units"] == 1

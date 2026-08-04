@@ -1,4 +1,4 @@
-﻿"""HTTP API for starting analysis tasks and streaming their progress.
+"""HTTP API for starting analysis tasks and streaming their progress.
 
 - ``POST /api/analyze`` registers an async task and returns ``202 {task_id}``.
 - ``GET /api/tasks/{task_id}`` returns the current task state JSON.
@@ -155,24 +155,32 @@ async def task_events(request: Request, task_id: str) -> StreamingResponse:
         raise HTTPException(status_code=404, detail="task not found")
 
     async def event_stream() -> AsyncIterator[str]:
+        queue: asyncio.Queue | None = None
         try:
-            queue = task_manager.subscribe(task_id)
-        except KeyError:  # task vanished between the 404 check and subscribe
-            yield _sse(
-                {"type": "error", "code": "not_found", "message": "task not found"}
-            )
-            return
-        while True:
             try:
-                event = await asyncio.wait_for(
-                    queue.get(), timeout=SSE_HEARTBEAT_SECONDS
+                queue = task_manager.subscribe(task_id)
+            except KeyError:  # task vanished between the 404 check and subscribe
+                yield _sse(
+                    {"type": "error", "code": "not_found", "message": "task not found"}
                 )
-            except asyncio.TimeoutError:
-                yield ": heartbeat\n\n"
-                continue
-            yield _sse(event)
-            if event["type"] in ("done", "error"):
-                break
+                return
+            while True:
+                try:
+                    event = await asyncio.wait_for(
+                        queue.get(), timeout=SSE_HEARTBEAT_SECONDS
+                    )
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                    continue
+                yield _sse(event)
+                if event["type"] in ("done", "error"):
+                    break
+        finally:
+            # Client disconnect (generator closed mid-stream) or natural end:
+            # drop this queue from the task's subscriber set so the registry
+            # never accumulates dead SSE queues.
+            if queue is not None:
+                task_manager.unsubscribe(task_id, queue)
 
     return StreamingResponse(
         event_stream(),

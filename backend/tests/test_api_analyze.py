@@ -1,4 +1,4 @@
-﻿"""T9 API tests: POST /api/analyze, GET /api/tasks/{id}, SSE events endpoint."""
+"""T9 API tests: POST /api/analyze, GET /api/tasks/{id}, SSE events endpoint."""
 
 import asyncio
 import json
@@ -144,3 +144,27 @@ def test_invalid_pr_url_fails_async(task_client):
     state = wait_for_task(task_client, task_id)
     assert state["status"] == "failed"
     assert state["error_code"] == "invalid_url"
+
+
+def test_sse_disconnect_removes_subscribed_queue(task_client, monkeypatch):
+    import app.api.analyze as analyze_mod
+
+    monkeypatch.setattr(analyze_mod, "SSE_HEARTBEAT_SECONDS", 0.02)
+    tm = task_client.app.state.task_manager
+
+    class QuickEngine:
+        async def run_analysis(self, ctx, progress=None):
+            await asyncio.sleep(0.08)
+
+    task_client.app.state.analysis_engine = QuickEngine()
+    r = task_client.post("/api/analyze", json={"pr_url": "o/r/pull/1"})
+    task_id = r.json()["task_id"]
+    with task_client.stream("GET", f"/api/tasks/{task_id}/events") as resp:
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/event-stream")
+        first = next(resp.iter_bytes())  # an SSE frame proves the client connected
+        assert first
+    # client disconnected: the subscribed queue must be removed from the set
+    assert not tm._queues.get(task_id)
+    tm.cancel(task_id)
+    wait_for_task(task_client, task_id)

@@ -1,4 +1,4 @@
-﻿"""In-memory async task registry for ``/api/analyze`` runs with SSE progress.
+"""In-memory async task registry for ``/api/analyze`` runs with SSE progress.
 
 Each :meth:`TaskManager.create` call registers a task, schedules ``_run`` as
 an ``asyncio`` task, and returns a ``uuid4`` task id.  ``_run`` advances the
@@ -34,6 +34,11 @@ logger = logging.getLogger(__name__)
 #: Statuses that end the state machine; the token is dropped and no further
 #: events are produced once a task reaches one of these.
 TERMINAL_STATUSES = ("succeeded", "failed", "cancelled")
+
+#: Retention bound for the in-memory registry: at most this many TERMINAL
+#: tasks are kept (oldest terminal tasks are evicted first).  Non-terminal
+#: tasks are never evicted so live runs always stay queryable.
+MAX_TERMINAL_TASKS = 100
 
 #: Hint appended to ``repo_not_found`` errors (US-3 UX) without touching T3's
 #: error code - private repos surface as 404 when no token is supplied.
@@ -129,6 +134,21 @@ class TaskManager:
         if state["status"] in TERMINAL_STATUSES:
             queue.put_nowait(self._terminal_event(state))
         return queue
+
+    def unsubscribe(self, task_id: str, queue: asyncio.Queue) -> None:
+        """Remove ``queue`` from the task's subscriber set (client disconnect).
+
+        The empty set is dropped so a fully-disconnected task's registry entry
+        does not linger; a later :meth:`subscribe` recreates it via
+        ``setdefault``.  Unknown task ids and queues that were never
+        subscribed are no-ops.
+        """
+        subscribers = self._queues.get(task_id)
+        if subscribers is None:
+            return
+        subscribers.discard(queue)
+        if not subscribers:
+            self._queues.pop(task_id, None)
 
     def cancel(self, task_id: str) -> None:
         """Cancel a running task and mark its state ``cancelled``.
@@ -247,6 +267,26 @@ class TaskManager:
             )
         finally:
             state.pop("token", None)
+            self._evict_if_needed()
+
+    def _evict_if_needed(self) -> None:
+        """Evict the oldest terminal task once the retention bound is exceeded.
+
+        Keeps at most :data:`MAX_TERMINAL_TASKS` terminal tasks; non-terminal
+        tasks are never evicted.  The evicted task's queue set and async-task
+        handle are dropped with it so the registry does not grow without
+        bound.  Insertion order makes the first terminal task in ``_tasks``
+        the oldest.
+        """
+        terminal = [
+            task_id
+            for task_id, state in self._tasks.items()
+            if state["status"] in TERMINAL_STATUSES
+        ]
+        for task_id in terminal[: max(0, len(terminal) - MAX_TERMINAL_TASKS)]:
+            self._tasks.pop(task_id, None)
+            self._queues.pop(task_id, None)
+            self._async_tasks.pop(task_id, None)
 
     def _tokenized_fetcher(
         self, fetcher: GitHubFetcher, token: str | None
