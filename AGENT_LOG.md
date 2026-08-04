@@ -77,3 +77,8 @@
 - **技能**：subagent-driven-development。
 - **实现**：T7 stage2 校验 commit 6857781（Newton，含 T6 review 折入：真实变更行判定/文件名校验/病态行号收敛；修正 brief 草案测试顺序矛盾）；T11 凭据+设置 commit c375174（Euclid）。
 - **评审**：T11 → Mill ✅ Approved（T12 需加 test_cli.py）；T7 评审进行中。
+
+### T7 完成（WT-2）
+- **技能**：subagent-driven-development。
+- **实现**：stage2 校验 commit 6857781（Newton）；折入 T6 评审项（真实变更行判定/文件名校验/病态行号收敛）；修正 brief 草案测试顺序矛盾（已记录）。
+- **评审**：Copernicus ✅ Approved（minor：verify 消息缺 truncated 注记、true_changed_lines 多 hunk 测试 → 折入 T8）。
