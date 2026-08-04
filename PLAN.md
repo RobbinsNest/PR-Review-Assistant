@@ -474,6 +474,8 @@ async def test_stage1_skips_failed_unit():
 
 ### Task T7: 分析引擎 Stage 2 校验（keep/drop/downgrade + 置信度修订）
 
+> ✅ **完成** — commit `6857781`（2026-08-04，implementer: Newton；review: Copernicus ✅ Approved；修正 brief 草案测试顺序矛盾并记录）
+
 **Files:**
 - Modify: `backend/app/services/analysis_engine.py`
 - Test: `backend/tests/test_analysis_engine.py`（追加）
