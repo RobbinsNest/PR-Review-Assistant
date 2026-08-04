@@ -20,9 +20,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
+
+if TYPE_CHECKING:  # pragma: no cover - annotation-only, avoids runtime coupling
+    from app.services.history_store import HistoryStore
 
 from app.core.errors import AppError
 from app.models.analysis import AnalysisResult
@@ -90,8 +94,15 @@ class TaskManager:
         token: str | None,
         engine: AnalysisEngine,
         fetcher: GitHubFetcher,
+        history_store: HistoryStore | None = None,
     ) -> str:
-        """Register a task and start ``_run``; return the new ``uuid4`` id."""
+        """Register a task and start ``_run``; return the new ``uuid4`` id.
+
+        ``history_store`` is optional: when supplied, a successful run
+        persists its result there (``result.meta["history_id"]`` is set to the
+        saved record id); a ``None`` store or a persistence failure leaves the
+        result untouched and never fails the task.
+        """
         task_id = str(uuid.uuid4())
         now = _now()
         state: TaskState = {
@@ -111,7 +122,7 @@ class TaskManager:
         self._tasks[task_id] = state
         self._queues[task_id] = set()
         self._async_tasks[task_id] = asyncio.create_task(
-            self._run(task_id, pr_url, engine, fetcher)
+            self._run(task_id, pr_url, engine, fetcher, history_store)
         )
         return task_id
 
@@ -187,9 +198,17 @@ class TaskManager:
         pr_url: str,
         engine: AnalysisEngine,
         fetcher: GitHubFetcher,
+        history_store: HistoryStore | None = None,
     ) -> None:
-        """Advance the state machine and push stage/done/error events."""
+        """Advance the state machine and push stage/done/error events.
+
+        On success the result is persisted via ``history_store`` (when one is
+        provided) and ``result.meta["history_id"]`` is set to the saved record
+        id; failed/cancelled tasks are never saved. ``duration_ms`` covers the
+        whole run from task start to success.
+        """
         state = self._tasks[task_id]
+        start_time = time.monotonic()
         try:
             # -- fetching ----------------------------------------------------
             self._update(
@@ -228,6 +247,36 @@ class TaskManager:
                 )
 
             result = await engine.run_analysis(ctx, progress=on_progress)
+
+            # Persist successful analyses to history (best-effort): the saved
+            # record id is set on result.meta["history_id"] so clients can
+            # export the report.  A missing store or a store error never
+            # fails the task - history_id is simply left unset.
+            if history_store is not None:
+                # Lazy import: config snapshot must not force settings-loading
+                # for tasks that never persist; no secrets are recorded.
+                from app.core.config import get_settings
+
+                settings = get_settings()
+                duration_ms = max(0, round((time.monotonic() - start_time) * 1000))
+                try:
+                    saved_id = await history_store.save(
+                        ctx.info,
+                        result,
+                        {
+                            "model": settings.llm_model,
+                            "base_url": settings.llm_base_url,
+                        },
+                        duration_ms,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "task %s history save failed error=%s",
+                        task_id,
+                        exc.__class__.__name__,
+                    )
+                else:
+                    result.meta["history_id"] = saved_id
 
             self._update(state, status="succeeded", stage="succeeded", result=result)
             self._emit(task_id, {"type": "done", "result": result.model_dump()})

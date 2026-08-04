@@ -468,6 +468,21 @@ async def test_run_analysis_full_pipeline():
     assert {"building", "analyzing", "verifying", "aggregating"} <= stages
 
 
+async def test_run_analysis_result_exposes_per_file_diffs():
+    # The result must carry every changed file's path + verbatim diff so the
+    # frontend DiffViewer can render each file even without findings.
+    engine = AnalysisEngine(pipeline_llm())
+    ctx = PRContext(info=pr_info(), files=[
+        changed_file(path="a.py"),
+        changed_file(path="b.py", diff="@@ -1,1 +1,1 @@\n-x\n+z"),
+    ])
+    result = await engine.run_analysis(ctx)
+    assert result.files == [
+        {"path": "a.py", "diff": "@@ -1,2 +1,2 @@\n-x\n+y"},
+        {"path": "b.py", "diff": "@@ -1,1 +1,1 @@\n-x\n+z"},
+    ]
+
+
 async def test_run_analysis_meta_includes_t6_stats():
     engine = AnalysisEngine(pipeline_llm())
     ctx = PRContext(info=pr_info(), files=[changed_file()])

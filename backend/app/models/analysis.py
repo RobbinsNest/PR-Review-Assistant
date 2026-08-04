@@ -20,3 +20,7 @@ class AnalysisResult(BaseModel):
     summary: AnalysisSummary
     findings: list[Finding]
     meta: dict
+    #: Per-file unified diffs (``{"path": str, "diff": str}``) so clients can
+    #: render one DiffViewer per changed file.  Defaults to empty for backward
+    #: compatibility with producers that do not populate it.
+    files: list[dict] = []

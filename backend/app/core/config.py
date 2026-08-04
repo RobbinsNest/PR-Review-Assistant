@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     file_token_budget_in: int = 8000
     file_token_budget_out: int = 4000
     llm_timeout_sec: float = 60.0
-    example_pr: str = "owner/repo/pull/1"
+    example_pr: str = "RobbinsNest/PR-Review-Assistant/pull/1"
     database_path: str = "data/analyses.db"
     rate_limit_per_min: int = 10
     #: Comma-separated CORS allowlist; empty means same-origin only.

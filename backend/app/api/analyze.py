@@ -133,7 +133,13 @@ def _sse(event: dict) -> str:
 async def analyze(request: Request, body: AnalyzeRequest) -> dict:
     """Register an analysis task; returns ``202 {"task_id": ...}``."""
     task_id = _task_manager(request).create(
-        body.pr_url, body.github_token, _engine(request), _fetcher(request)
+        body.pr_url,
+        body.github_token,
+        _engine(request),
+        _fetcher(request),
+        # Set by the app lifespan; may be absent (e.g. in unit tests) - the
+        # task manager skips history persistence gracefully when it is None.
+        history_store=getattr(request.app.state, "history_store", None),
     )
     return {"task_id": task_id}
 
