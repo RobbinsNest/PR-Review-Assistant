@@ -85,6 +85,7 @@ PR（Pull Request）评审是研发流程中最耗时、质量波动最大的环
   3. 与提供的上下文是否**矛盾**（防幻觉）。
   输出 `keep / drop / downgrade` + 修订置信度。
 - **Stage 3 汇总（aggregate）**：一次调用合并各文件结果 → PR 级变更总结 + 按严重度排序的发现清单 + 评审建议（可按类别聚合）。
+  `说明：「两阶段」指发现的生成-校验；汇总层是独立的合并步骤，不算发现生成阶段。`
 - **并行与限流**：文件级 `asyncio.gather` + 信号量（默认并发 3-5，可配）；每文件 token 预算上限（默认 in ~8k / out ~4k，可配）。
 - **输出**：`AnalysisResult { summary, findings[], meta { stage_durations, token_estimate } }`。
 - **错误处理**：单文件失败（重试后）→ 标记该文件 skipped，任务继续，汇总标注"部分成功"；LLM 超时重试 1 次；JSON 解析失败 → 追加修复提示重试 1 次；仍失败 → `llm_json_parse_failed`。
@@ -293,10 +294,10 @@ PR（Pull Request）评审是研发流程中最耗时、质量波动最大的环
 |---|---|
 | US-1 分析 | 公开 PR URL 提交后返回结构化总结，典型 ≤90s，看板渲染通过 |
 | US-2 定位 | 发现列表可按 category/severity 过滤排序；每项含 file/line；diff 视图高亮对应行 |
-| US-3 私有 | 私有仓库 + 会话 token 分析成功；重启/刷新后 token 失效；日志 grep 无 token |
+| US-3 私有 | 私有仓库 + 会话 token 分析成功；token 不持久化：重启服务后不可复用、刷新后新分析需重填（进行中的任务不受影响）；日志 grep 无 token |
 | US-4 误报控制 | 校验阶段对 fixture 中"非本次变更引入/越界/矛盾"候选做 keep/drop/downgrade，单测断言；UI 展示置信度 |
 | US-5 进度 | SSE 事件序列覆盖全阶段，前端逐阶段推进 |
-| US-6 示例 | 示例 PR 按钮零配置出结果（真实公开样例） |
+| US-6 示例 | 示例 PR 按钮零配置出结果；实现时选定一个稳定的公开样例（owner/repo/pull 号写入配置），并为测试录制该 PR 的 GitHub fixture |
 | US-7 历史 | 历史列表/详情/Markdown 导出可用；重启后仍在（SQLite） |
 | US-8 凭据 | 首次 setup 引导；CLI 隐藏录入；掩码状态/更新/清除可用；源码与 git 历史 grep 无 key |
 | 工程 | `make test` 全绿；GitHub Actions pass；新机器 `docker build && docker run` 跑通出结果 |
