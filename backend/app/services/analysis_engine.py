@@ -669,7 +669,14 @@ class AnalysisEngine:
         self.stats["dropped_by_scope"] = stats["dropped_by_scope"]
         self.stats["skipped_units"] = stats["skipped_units"]
         self.stats["scaffolding_tokens"] = stats["scaffolding_tokens"]
-        return AnalysisResult(summary=summary, findings=findings, meta=meta)
+        return AnalysisResult(
+            summary=summary,
+            findings=findings,
+            meta=meta,
+            # Per-file diffs copied verbatim so the result carries every
+            # changed file's diff (empty when the context has no files).
+            files=[{"path": file.path, "diff": file.diff} for file in ctx.files],
+        )
 
 
 def _changed_lines(ranges: list[tuple[int, int]]) -> set[int]:

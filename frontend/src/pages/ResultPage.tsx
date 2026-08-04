@@ -106,18 +106,27 @@ export default function ResultPage() {
 
   const findings = result.findings ?? [];
   const files = result.files ?? [];
-  // Export requires a stored history record id; the task result does not
-  // carry one today, so the button only appears when the backend exposes it.
+  // Export requires a stored history record id (set by the backend when a
+  // successful analysis is persisted), so the button only appears when the
+  // result carries one.
   const historyId =
     typeof result.meta?.history_id === "string" ? result.meta.history_id : undefined;
 
-  // Group findings per file, preserving first-seen order.
-  const byFile = new Map<string, Finding[]>();
-  for (const finding of findings) {
-    const list = byFile.get(finding.file_path) ?? [];
-    list.push(finding);
-    byFile.set(finding.file_path, list);
+  // Render one DiffViewer per changed file: iterate result.files (ALL files,
+  // not only files-with-findings) and attach only the findings scoped to that
+  // file. Files without diff text fall back to the empty-diff note inside
+  // DiffViewer. Finding-only paths missing from result.files (legacy backend)
+  // are appended so findings never silently disappear.
+  const diffByPath = new Map<string, string>();
+  for (const file of files) {
+    diffByPath.set(file.path, file.diff ?? "");
   }
+  for (const finding of findings) {
+    if (!diffByPath.has(finding.file_path)) {
+      diffByPath.set(finding.file_path, "");
+    }
+  }
+  const fileEntries = Array.from(diffByPath.entries());
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-[1120px] space-y-4 px-6 py-10">
@@ -134,15 +143,15 @@ export default function ResultPage() {
 
       <section className="space-y-4" aria-label="变更 Diff">
         <h2 className="text-lg font-semibold text-ink">变更 Diff</h2>
-        {byFile.size === 0 ? (
+        {fileEntries.length === 0 ? (
           <p className="text-sm text-ink-muted">无文件级发现</p>
         ) : (
-          Array.from(byFile.entries()).map(([filePath, fileFindings]) => (
+          fileEntries.map(([filePath, diff]) => (
             <DiffViewer
               key={filePath}
               filePath={filePath}
-              diff={files.find((file) => file.path === filePath)?.diff ?? ""}
-              findings={fileFindings}
+              diff={diff}
+              findings={findings.filter((finding) => finding.file_path === filePath)}
             />
           ))
         )}
