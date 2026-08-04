@@ -88,4 +88,26 @@ describe("FindingsList", () => {
 
     expect(renderedIds(container)).toEqual(["f-sec"]);
   });
+  it("falls back to nit styling for out-of-enum severities", () => {
+    const findings = [
+      makeFinding({ id: "f-unknown", severity: "urgent" as Finding["severity"] }),
+    ];
+    const { container } = render(<FindingsList findings={findings} />);
+
+    expect(renderedSeverities(container)).toEqual(["urgent"]);
+    const badges = Array.from(container.querySelectorAll('[data-severity="urgent"] span.rounded-full'));
+    const severityBadge = badges.find((el) => el.className.includes("bg-severity-"));
+    expect(severityBadge?.className).toContain("bg-severity-nit");
+  });
+
+  it("sorts out-of-enum severities after known ones (treated as nit)", () => {
+    const findings = [
+      makeFinding({ id: "f-unknown", severity: "urgent" as Finding["severity"] }),
+      makeFinding({ id: "f-critical", severity: "critical" }),
+      makeFinding({ id: "f-minor", severity: "minor" }),
+    ];
+    const { container } = render(<FindingsList findings={findings} />);
+
+    expect(renderedIds(container)).toEqual(["f-critical", "f-minor", "f-unknown"]);
+  });
 });

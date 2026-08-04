@@ -14,14 +14,20 @@ function formatDateTime(iso: string): string {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+/** Number of records fetched per history page. */
+const PAGE_SIZE = 50;
+
 /**
  * History page: stored analyses (PR title / repo / time / status) with
- * inline detail (summary + findings), Markdown export and hard delete.
+ * inline detail (summary + findings), Markdown export, hard delete and
+ * offset-based pagination (加载更多).
  */
 export default function HistoryPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState<HistoryItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -29,12 +35,30 @@ export default function HistoryPage() {
   const load = () => {
     setLoading(true);
     setError(null);
-    getHistory()
-      .then((page) => setItems(page.items))
+    getHistory(PAGE_SIZE, 0)
+      .then((page) => {
+        setItems(page.items);
+        setTotal(page.total);
+      })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "加载历史失败");
       })
       .finally(() => setLoading(false));
+  };
+
+  // Fetch the next page (offset = currently loaded count) and append it.
+  const loadMore = () => {
+    setLoadingMore(true);
+    setError(null);
+    getHistory(PAGE_SIZE, items.length)
+      .then((page) => {
+        setItems((prev) => [...prev, ...page.items]);
+        setTotal(page.total);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "加载历史失败");
+      })
+      .finally(() => setLoadingMore(false));
   };
 
   useEffect(load, []);
@@ -45,6 +69,7 @@ export default function HistoryPage() {
     try {
       await deleteHistory(id);
       setItems((prev) => prev.filter((item) => item.id !== id));
+      setTotal((prev) => Math.max(0, prev - 1));
       setExpandedId((prev) => (prev === id ? null : prev));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "删除失败");
@@ -58,7 +83,7 @@ export default function HistoryPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">历史记录</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          {loading ? "" : `共 ${items.length} 条分析记录`}
+          {loading ? "" : `共 ${total} 条分析记录`}
         </p>
       </header>
 
@@ -138,6 +163,19 @@ export default function HistoryPage() {
             );
           })}
         </ol>
+      )}
+
+      {!loading && items.length > 0 && items.length < total && (
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="rounded-md border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loadingMore ? "加载中…" : "加载更多"}
+          </button>
+        </div>
       )}
     </main>
   );

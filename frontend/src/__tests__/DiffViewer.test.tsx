@@ -101,4 +101,15 @@ describe("DiffViewer", () => {
     render(<DiffViewer filePath="src/a.py" diff="" findings={[]} />);
     expect(screen.getByText(/暂无 diff/)).toBeTruthy();
   });
+  it("falls back to nit styling for out-of-enum severities", () => {
+    const findings = [
+      makeFinding({ id: "f1", severity: "urgent" as Finding["severity"], title: "Odd sev", line_start: 2, line_end: 2 }),
+    ];
+    render(<DiffViewer filePath="src/a.py" diff={SAMPLE_DIFF} findings={findings} />);
+
+    expect(lineClass(2).contains("highlight")).toBe(true);
+    expect(lineClass(2).contains("bg-severity-nit/10")).toBe(true);
+    const chip = screen.getByRole("button", { name: /Odd sev/ });
+    expect(chip.className).toContain("bg-severity-nit");
+  });
 });

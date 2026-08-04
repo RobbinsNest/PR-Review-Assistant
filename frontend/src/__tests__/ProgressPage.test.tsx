@@ -92,4 +92,15 @@ describe("ProgressPage", () => {
     fireEvent.click(restart);
     expect(navigateMock).toHaveBeenCalledWith("/");
   });
+  it("stops the elapsed-time tick once a terminal error is set", () => {
+    const clearIntervalSpy = vi.spyOn(window, "clearInterval");
+    render(<ProgressPage />);
+
+    act(() => {
+      handlers.onError?.("task_failed", "analysis failed");
+    });
+
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    clearIntervalSpy.mockRestore();
+  });
 });

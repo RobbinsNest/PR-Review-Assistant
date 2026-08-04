@@ -3,8 +3,8 @@ import { router } from "./router";
 
 /**
  * App shell: delegates routing to the react-router data router defined in
- * ./router.tsx. Pages are mounted per route (T15/T16 fill in the remaining
- * routes).
+ * ./router.tsx. The router's root layout route mounts the persistent NavBar
+ * around every page (<Outlet/>), so navigation stays visible across the SPA.
  */
 export default function App() {
   return <RouterProvider router={router} />;

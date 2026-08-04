@@ -2,7 +2,7 @@
 
 Endpoints under ``/api/settings``:
 
-- ``GET /api/settings/llm``    -> current base_url/model + key status/mask
+- ``GET /api/settings/llm``    -> base_url/model + key status/mask + example_pr
 - ``PUT /api/settings/llm``    -> update provided fields (empty api_key = no-op)
 - ``DELETE /api/settings/llm`` -> clear the stored LLM API key
 - ``POST /api/settings/llm/test`` -> minimal chat probe with the current config
@@ -130,6 +130,8 @@ def _llm_settings_response(settings) -> dict:
         "model": settings.llm_model,
         "api_key_configured": configured,
         "api_key_masked": CredentialStore.mask(key) if configured else None,
+        #: Public example PR used by the SPA quick-start button (config.py).
+        "example_pr": settings.example_pr,
     }
 
 

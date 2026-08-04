@@ -4,6 +4,7 @@ import {
   SEVERITY_BG,
   SEVERITY_ORDER,
   SEVERITY_TEXT,
+  normalizeSeverity,
   type Finding,
   type FindingSeverity,
 } from "./FindingsList";
@@ -28,8 +29,8 @@ interface DiffLine {
 }
 
 /** Severity rank: lower = more severe (used to pick the strongest highlight). */
-function severityRank(severity: FindingSeverity): number {
-  return SEVERITY_ORDER.indexOf(severity);
+function severityRank(severity: string): number {
+  return SEVERITY_ORDER.indexOf(normalizeSeverity(severity));
 }
 
 const PREFIX: Record<DiffLineType, string> = {
@@ -130,7 +131,7 @@ export default function DiffViewer({ filePath, diff, findings }: DiffViewerProps
           line.newLineNo <= finding.line_end &&
           (best === null || severityRank(finding.severity) < severityRank(best))
         ) {
-          best = finding.severity;
+          best = normalizeSeverity(finding.severity);
         }
       }
       if (best !== null) {
@@ -167,7 +168,7 @@ export default function DiffViewer({ filePath, diff, findings }: DiffViewerProps
               key={finding.id}
               type="button"
               onClick={() => scrollToFinding(finding.line_start, finding.line_end)}
-              className={`inline-flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-xs font-medium ${SEVERITY_TEXT[finding.severity]}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-xs font-medium ${SEVERITY_TEXT[normalizeSeverity(finding.severity)]}`}
             >
               <span>{finding.severity}</span>
               <span className="text-ink">{finding.title}</span>

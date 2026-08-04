@@ -51,13 +51,23 @@ export const SEVERITY_BG: Record<FindingSeverity, string> = {
   nit: "bg-severity-nit/10",
 };
 
+/**
+ * Map any severity string to a known severity, falling back to "nit" styling
+ * for out-of-enum values emitted by older/foreign backends.
+ */
+export function normalizeSeverity(severity: string): FindingSeverity {
+  return (SEVERITY_ORDER as readonly string[]).includes(severity)
+    ? (severity as FindingSeverity)
+    : "nit";
+}
+
 interface FindingsListProps {
   findings: Finding[];
 }
 
 /** Severity rank: lower = more severe = rendered first. */
-function severityRank(severity: FindingSeverity): number {
-  return SEVERITY_ORDER.indexOf(severity);
+function severityRank(severity: string): number {
+  return SEVERITY_ORDER.indexOf(normalizeSeverity(severity));
 }
 
 /**
@@ -144,7 +154,7 @@ export default function FindingsList({ findings }: FindingsListProps) {
                   {finding.category}
                 </span>
                 <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_TEXT[finding.severity]}`}
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_TEXT[normalizeSeverity(finding.severity)]}`}
                 >
                   {finding.severity}
                 </span>

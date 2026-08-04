@@ -43,6 +43,8 @@ def test_get_returns_defaults_and_unconfigured(client, keyring_stub):
     assert body["model"] == "deepseek-v4-flash"
     assert body["api_key_configured"] is False
     assert body["api_key_masked"] is None
+    # Single source of truth for the SPA quick-start button.
+    assert body["example_pr"] == "RobbinsNest/PR-Review-Assistant/pull/1"
 
 
 def test_put_sets_key_and_get_shows_masked(client, keyring_stub):

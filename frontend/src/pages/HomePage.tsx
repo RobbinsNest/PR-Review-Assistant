@@ -1,13 +1,13 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { analyze, ApiError } from "../api/client";
+import { analyze, getSettings, ApiError } from "../api/client";
 
 /**
- * Example PR used by the "示例 PR 一键体验" quick-start button.
- *
- * Frontend constant for now: ideally this should come from a backend config
- * endpoint (the backend keeps `Settings.example_pr`, default
- * "owner/repo/pull/1") so the SPA never hard-codes a repo. Future extension.
+ * Fallback example PR used by the "示例 PR 一键体验" quick-start button when
+ * the backend config cannot be fetched. The backend `Settings.example_pr` is
+ * the single source of truth (default "RobbinsNest/PR-Review-Assistant/pull/1"
+ * in app/core/config.py, overridable via EXAMPLE_PR); HomePage fetches it on
+ * mount and only falls back to this constant on failure.
  */
 export const EXAMPLE_PR_URL = "https://github.com/RobbinsNest/PR-Review-Assistant/pull/1";
 
@@ -43,10 +43,31 @@ export default function HomePage() {
   const [githubToken, setGithubToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Example PR resolved from the backend config on mount (fallback constant).
+  const [examplePr, setExamplePr] = useState(EXAMPLE_PR_URL);
   // Synchronous guard against double-submit races: set before any async work
   // (state updates are async, so `submitting` alone can be stale) and reset
   // on error/finish. The disabled buttons remain as the visible feedback.
   const submittingRef = useRef(false);
+
+  // Single source of truth for the example PR: fetch it from the backend
+  // (GET /api/settings/llm -> example_pr). On failure keep the bundled
+  // fallback so the quick-start button still works offline.
+  useEffect(() => {
+    let cancelled = false;
+    getSettings()
+      .then((settings) => {
+        if (!cancelled && settings.example_pr) {
+          setExamplePr(settings.example_pr);
+        }
+      })
+      .catch(() => {
+        // Backend unreachable: keep the fallback URL.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const startAnalysis = async (url: string, token: string) => {
     if (submittingRef.current) {
@@ -77,8 +98,8 @@ export default function HomePage() {
   };
 
   const handleExample = () => {
-    setPrUrl(EXAMPLE_PR_URL);
-    void startAnalysis(EXAMPLE_PR_URL, githubToken);
+    setPrUrl(examplePr);
+    void startAnalysis(examplePr, githubToken);
   };
 
   return (

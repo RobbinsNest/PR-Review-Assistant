@@ -80,6 +80,23 @@ export default function ResultPage() {
     };
   }, [taskId, navigate]);
 
+  // No task id in the URL: there is nothing to load (never hang on 加载中…).
+  if (!taskId) {
+    return (
+      <main className="mx-auto min-h-screen w-full max-w-[1120px] px-6 py-10">
+        <div
+          role="alert"
+          className="rounded-md border border-error/30 bg-error/5 px-4 py-3 text-sm text-error"
+        >
+          <p className="font-medium">结果不可用</p>
+          <button type="button" onClick={() => navigate("/")} className="mt-2 underline">
+            重新开始
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   if (loading || redirecting) {
     return (
       <main className="mx-auto min-h-screen w-full max-w-[1120px] px-6 py-10">

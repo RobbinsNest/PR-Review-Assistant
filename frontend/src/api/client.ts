@@ -57,6 +57,11 @@ export interface LLMSettings {
   model: string;
   api_key_configured: boolean;
   api_key_masked: string | null;
+  /**
+   * Example PR (owner/repo/pull/n) served by the backend config; the SPA
+   * quick-start button renders the full URL from this single source of truth.
+   */
+  example_pr: string;
 }
 
 /** Optional fields accepted by PUT /api/settings/llm. */

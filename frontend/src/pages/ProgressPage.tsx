@@ -79,6 +79,15 @@ export default function ProgressPage() {
     };
   }, [taskId, navigate]);
 
+  // A terminal error freezes the page: stop the elapsed-time tick so the
+  // error state never re-renders every 250ms.
+  useEffect(() => {
+    if (error && timerRef.current !== undefined) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = undefined;
+    }
+  }, [error]);
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-[1120px] flex-col items-center justify-center px-6 py-10">
       <div className="w-full max-w-2xl">

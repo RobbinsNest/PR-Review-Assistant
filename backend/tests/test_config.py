@@ -25,3 +25,14 @@ def test_api_key_env_fallback_still_works(monkeypatch):
     monkeypatch.setattr(CredentialStore, "_keyring_get", classmethod(lambda cls: None))
     monkeypatch.setenv("LLM_API_KEY", "sk-env-fallback")
     assert Settings().api_key() == "sk-env-fallback"
+
+
+def test_default_example_pr_is_real_public_pr():
+    """The bundled example PR is this repo's own merged PR #1 (public)."""
+    assert Settings().example_pr == "RobbinsNest/PR-Review-Assistant/pull/1"
+
+
+def test_example_pr_overridable_via_env(monkeypatch):
+    """EXAMPLE_PR env var overrides the default example PR."""
+    monkeypatch.setenv("EXAMPLE_PR", "owner/repo/pull/42")
+    assert Settings().example_pr == "owner/repo/pull/42"

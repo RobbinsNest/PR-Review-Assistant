@@ -3,16 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Finding } from "../components/FindingsList";
 import ResultPage from "../pages/ResultPage";
 
-const { getTaskMock, navigateMock } = vi.hoisted(() => ({
+const { getTaskMock, navigateMock, paramsHolder } = vi.hoisted(() => ({
   getTaskMock: vi.fn(),
   navigateMock: vi.fn(),
+  paramsHolder: { taskId: "task-123" as string | undefined },
 }));
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => navigateMock,
-  useParams: () => ({ taskId: "task-123" }),
+  useParams: () => ({ taskId: paramsHolder.taskId }),
 }));
-
 vi.mock("../api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/client")>();
   return { ...actual, getTask: getTaskMock };
@@ -49,6 +49,7 @@ describe("ResultPage", () => {
   beforeEach(() => {
     getTaskMock.mockReset();
     navigateMock.mockReset();
+    paramsHolder.taskId = "task-123";
   });
 
   afterEach(() => {
@@ -134,5 +135,12 @@ describe("ResultPage", () => {
     const a = await screen.findByRole("region", { name: "src/a.py" });
     expect(within(a).getByRole("button", { name: /Bug A/ })).toBeTruthy();
     expect(within(a).getByText(EMPTY_NOTE)).toBeTruthy();
+  });
+  it("renders 结果不可用 instead of hanging on 加载中… when taskId is missing", () => {
+    paramsHolder.taskId = undefined;
+    render(<ResultPage />);
+
+    expect(screen.getByText("结果不可用")).toBeTruthy();
+    expect(getTaskMock).not.toHaveBeenCalled();
   });
 });
