@@ -11,6 +11,7 @@ class ErrorCode(str, Enum):
     PULL_NOT_FOUND = "pull_not_found"
     PRIVATE_REPO_REQUIRES_TOKEN = "private_repo_requires_token"
     GITHUB_RATE_LIMITED = "github_rate_limited"
+    GITHUB_API_ERROR = "github_api_error"
     LLM_TIMEOUT = "llm_timeout"
     LLM_JSON_PARSE_FAILED = "llm_json_parse_failed"
     TASK_CANCELLED = "task_cancelled"
@@ -26,6 +27,7 @@ ERROR_HTTP: dict[str, int] = {
     ErrorCode.PULL_NOT_FOUND.value: 404,
     ErrorCode.PRIVATE_REPO_REQUIRES_TOKEN.value: 400,
     ErrorCode.GITHUB_RATE_LIMITED.value: 429,
+    ErrorCode.GITHUB_API_ERROR.value: 502,
     ErrorCode.LLM_TIMEOUT.value: 504,
     ErrorCode.LLM_JSON_PARSE_FAILED.value: 400,
     ErrorCode.TASK_CANCELLED.value: 400,
