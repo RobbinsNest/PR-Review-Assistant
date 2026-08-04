@@ -106,3 +106,9 @@
 - **技能**：subagent-driven-development + finishing（用户既定每 worktree→PR）。
 - **结果**：PR #2（analysis-engine，head 0ab4c4c）与 PR #3（history-settings，head 3163f8e）经最终评审 fix wave 后合并；PR #3 因两分支同改 main.py 产生冲突，用 update-branch 流程（merge origin/main + 人工调和 main.py 合并两个 router + 修复 test_api_analyze 的 rate_limiter fixture）解决；合并树 **192 tests pass**。
 - **教训**：并行分支改同一文件（main.py）必然冲突；用"先合一个 PR → 另一个 update-branch 调和 → 全量测试 → 再合"可干净解决；两阶段评审 + 最终评审共抓出 8+ 个真实缺陷（含安全/并发/契约类）。
+
+### T14 完成（WT-4 frontend）
+- **技能**：subagent-driven-development。
+- **实现**：前端脚手架 commit a586173（Plato）——Vite+React18+TS+Tailwind、api client（9 个函数与后端契约逐字段核对）、SSE client、DESIGN.md（Open Design 契约，中文）。
+- **评审**：Linnaeus ✅ Approved（minor：ApiError 携带 code、SSE 404 终止 → 折入 T15）。
+- **环境**：npm.ps1 被执行策略禁用 → 用 npm.cmd；沙箱 D:\ 写入在 escalation 后受限 → subagent 用 escalation 完成写入/构建。

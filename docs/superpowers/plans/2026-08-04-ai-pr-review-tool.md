@@ -824,6 +824,8 @@ async def test_allow_within_limit():
 
 ### Task T14: 前端脚手架（Vite + React + TS + Tailwind + 设计契约）
 
+> ✅ **完成** — commit `a586173`（2026-08-04，implementer: Plato；review: Linnaeus ✅ Approved）
+
 **Files:**
 - Create: `frontend/package.json`, `frontend/vite.config.ts`, `frontend/tsconfig.json`, `frontend/tailwind.config.js`, `frontend/postcss.config.js`, `frontend/index.html`
 - Create: `frontend/src/main.tsx`, `frontend/src/app/App.tsx`, `frontend/src/app/router.tsx`, `frontend/src/api/client.ts`, `frontend/src/api/sse.ts`, `frontend/src/styles/theme.css`
