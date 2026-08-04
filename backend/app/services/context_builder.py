@@ -17,7 +17,7 @@ from app.models.pr import ChangedFile
 #: ``@@ -a,b +c,d @@`` -> new-side start ``c`` and optional new-side count ``d``.
 _HUNK_RE = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 #: Start of a function/class definition (python ``def``/``class``, js ``function``).
-_DEF_LINE_RE = re.compile(r"^\s*(?:async\s+)?(?:def|class|function)\b")
+_DEF_LINE_RE = re.compile(r"^\s*(?:async\s+)?(?:def|class|function|func|fn)\b")
 
 #: Languages whose scope end is found by indentation.
 _INDENT_LANGUAGES = frozenset({"python", "py"})
@@ -102,8 +102,14 @@ def _find_by_indentation(lines: list[str], line: int) -> tuple[int, int] | None:
     if def_start is None:
         return None
     indent = len(lines[def_start]) - len(lines[def_start].lstrip())
-    end = def_start
-    for idx in range(def_start + 1, len(lines)):
+    # A definition header may span several lines (PEP 8 multi-line signature);
+    # treat every line up to the header terminator as part of the header, so a
+    # closing-paren ``):`` at column 0 does not prematurely end the body scan.
+    header_end = def_start
+    while header_end < len(lines) and not _header_terminates(lines[header_end]):
+        header_end += 1
+    end = header_end
+    for idx in range(header_end + 1, len(lines)):
         current = lines[idx]
         if not current.strip():
             continue
@@ -111,6 +117,12 @@ def _find_by_indentation(lines: list[str], line: int) -> tuple[int, int] | None:
             break
         end = idx
     return (def_start + 1, end + 1)
+
+
+def _header_terminates(line: str) -> bool:
+    """True when a definition header line closes with ``:`` (after any comment)."""
+    code = re.sub(r"\s+#.*$", "", line).strip()
+    return code.endswith(":")
 
 
 def _find_by_braces(lines: list[str], line: int) -> tuple[int, int] | None:

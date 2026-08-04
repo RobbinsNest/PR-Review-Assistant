@@ -59,6 +59,60 @@ def test_find_enclosing_function_brace_language():
     assert start == 1 and end == 7
 
 
+def test_find_enclosing_function_go_func():
+    go = (
+        "package main\n"
+        "\n"
+        "func foo(a int) int {\n"
+        "    x := a + 1\n"
+        "    return x\n"
+        "}\n"
+        "\n"
+        "func bar() int {\n"
+        "    return 2\n"
+        "}\n"
+    )
+    start, end = find_enclosing_function(go, 5, "go")
+    assert start == 3 and end == 6
+
+
+def test_find_enclosing_function_rust_fn():
+    rust = (
+        "fn foo(a: i32) -> i32 {\n"
+        "    let x = a + 1;\n"
+        "    x\n"
+        "}\n"
+        "\n"
+        "fn bar() -> i32 {\n"
+        "    2\n"
+        "}\n"
+    )
+    start, end = find_enclosing_function(rust, 3, "rust")
+    assert start == 1 and end == 4
+
+
+def test_find_enclosing_function_multiline_signature():
+    content = "def foo(\n    a,\n    b\n):\n    return a + b\n"
+    start, end = find_enclosing_function(content, 5, "python")
+    assert start == 1 and end == 5
+
+
+def test_find_enclosing_function_multiline_signature_stops_before_next():
+    content = (
+        "def foo(\n"
+        "    a,\n"
+        "    b\n"
+        "):\n"
+        "    x = a + b\n"
+        "    return x\n"
+        "\n"
+        "def bar():\n"
+        "    return 1\n"
+    )
+    start, end = find_enclosing_function(content, 6, "python")
+    assert start == 1 and end == 6
+
+
 def test_estimate_tokens():
     assert estimate_tokens("abcd") == 1
     assert estimate_tokens("") == 0
