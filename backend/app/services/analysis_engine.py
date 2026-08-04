@@ -543,6 +543,13 @@ class AnalysisEngine:
         skipped_files: list[str] = []
         units: list[AnalysisUnit] = []
 
+        # Cross-run isolation: each run starts from clean counters so a second
+        # run on the same engine never carries stale dropped_by_scope /
+        # skipped_units; the fixed scaffolding token estimate (set once in
+        # __init__) is preserved.
+        self.stats["dropped_by_scope"] = 0
+        self.stats["skipped_units"] = 0
+
         # -- building: T4 units per file; unbuildable files are skipped ------
         building_started = time.monotonic()
         total_files = len(ctx.files)
@@ -597,17 +604,24 @@ class AnalysisEngine:
         # -- aggregating: Stage 3 summary -----------------------------------
         aggregating_started = time.monotonic()
         aggregate_failed = False
-        try:
-            summary = await self.aggregate(ctx.info, findings)
-        except Exception as exc:  # verified findings must survive a bad summary
-            aggregate_failed = True
-            if isinstance(exc, AppError):
-                logger.warning("stage3 aggregation failed code=%s", exc.code)
-            else:
-                logger.warning(
-                    "stage3 aggregation failed error=%s",
-                    exc.__class__.__name__,
+        if findings:
+            try:
+                summary = await self.aggregate(ctx.info, findings)
+            except Exception as exc:  # verified findings must survive a bad summary
+                aggregate_failed = True
+                if isinstance(exc, AppError):
+                    logger.warning("stage3 aggregation failed code=%s", exc.code)
+                else:
+                    logger.warning(
+                        "stage3 aggregation failed error=%s",
+                        exc.__class__.__name__,
+                    )
+                summary = AnalysisSummary(
+                    title="", overview="", key_points=[], risk_highlights=[]
                 )
+        else:
+            # Short-circuit: no verified findings -> build an empty summary
+            # directly and skip the aggregate LLM call (nothing to summarize).
             summary = AnalysisSummary(
                 title="", overview="", key_points=[], risk_highlights=[]
             )

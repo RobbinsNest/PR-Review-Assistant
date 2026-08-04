@@ -502,15 +502,22 @@ async def test_run_analysis_records_build_failure_as_skipped(monkeypatch):
 
 
 async def test_run_analysis_falls_back_when_aggregate_fails():
+    # With the T9 short-circuit, aggregation is only attempted when verified
+    # findings exist, so this fixture must thread findings through the stages.
     class FailingAggregateLLM:
         async def chat_json(self, messages, schema, temperature=0.2):
             if schema is AGGREGATE_SCHEMA:
                 raise RuntimeError("boom")
-            return schema.model_validate({"findings": []})
+            if schema is GENERATE_SCHEMA:
+                return schema.model_validate({"findings": [finding()]})
+            return schema.model_validate({"results": [
+                {"index": 0, "verdict": "keep", "confidence": 0.8, "reason": "ok"},
+            ]})
 
     engine = AnalysisEngine(FailingAggregateLLM())
     ctx = PRContext(info=pr_info(), files=[changed_file()])
     result = await engine.run_analysis(ctx)
+    assert len(result.findings) == 1
     assert isinstance(result.summary, AnalysisSummary)
     assert result.summary.title == ""
     assert result.meta.get("aggregate_failed") is True
@@ -523,3 +530,80 @@ async def test_run_analysis_raises_when_no_files_analyzable():
         await engine.run_analysis(ctx)
     assert excinfo.value.code == "no_analyzable_files"
 
+
+# ---------------------------------------------------------------------------
+# T9 fold-ins: stats reset between runs, aggregate short-circuit,
+# no_analyzable_files error mapping, end-to-end run with non-empty findings
+# ---------------------------------------------------------------------------
+
+from app.core.errors import ERROR_HTTP, ErrorCode
+
+
+async def test_run_analysis_resets_stats_between_runs():
+    llm = FakeLLM({"findings": []}, by_schema={
+        GENERATE_SCHEMA: {"findings": [finding(line_start=10, line_end=12)]},
+        VERIFY_SCHEMA: {"results": []},
+        AGGREGATE_SCHEMA: {"summary": EMPTY_SUMMARY},
+    })
+    engine = AnalysisEngine(llm)
+    ctx = PRContext(info=pr_info(), files=[changed_file()])
+    first = await engine.run_analysis(ctx)
+    assert first.meta["dropped_by_scope"] == 1
+    llm.by_schema[GENERATE_SCHEMA] = {"findings": []}
+    second = await engine.run_analysis(ctx)
+    assert second.meta["dropped_by_scope"] == 0
+    assert second.meta["skipped_units"] == 0
+    assert engine.stats["dropped_by_scope"] == 0
+    assert engine.stats["skipped_units"] == 0
+    assert engine.stats["scaffolding_tokens"] > 0  # preserved across runs
+
+
+async def test_run_analysis_skips_aggregate_call_when_no_findings():
+    class NoAggregateLLM:
+        def __init__(self):
+            self.schemas = []
+
+        async def chat_json(self, messages, schema, temperature=0.2):
+            self.schemas.append(schema)
+            return schema.model_validate({"findings": []})
+
+    engine = AnalysisEngine(NoAggregateLLM())
+    ctx = PRContext(info=pr_info(), files=[changed_file()])
+    result = await engine.run_analysis(ctx)
+    assert result.findings == []
+    assert isinstance(result.summary, AnalysisSummary)
+    assert result.summary.title == ""
+    assert AGGREGATE_SCHEMA not in engine.llm.schemas
+
+
+async def test_no_analyzable_files_error_code_maps_to_422():
+    assert ErrorCode.NO_ANALYZABLE_FILES.value == "no_analyzable_files"
+    assert ERROR_HTTP[ErrorCode.NO_ANALYZABLE_FILES.value] == 422
+    err = AppError(
+        "no_analyzable_files", message="no analyzable files in the pull request"
+    )
+    assert err.status_code == 422
+
+
+async def test_run_analysis_end_to_end_with_findings():
+    # Composed end-to-end run: findings flow stage1 -> verify -> aggregate.
+    llm = FakeLLM({"findings": []}, by_schema={
+        GENERATE_SCHEMA: {"findings": [finding()]},
+        VERIFY_SCHEMA: {"results": [
+            {"index": 0, "verdict": "keep", "confidence": 0.8, "reason": "ok"},
+        ]},
+        AGGREGATE_SCHEMA: {"summary": {
+            "title": "Review title", "overview": "overview text",
+            "key_points": ["k1"], "risk_highlights": ["r1"],
+        }},
+    })
+    engine = AnalysisEngine(llm)
+    ctx = PRContext(info=pr_info(), files=[changed_file()])
+    result = await engine.run_analysis(ctx)
+    assert len(result.findings) == 1
+    assert result.findings[0].file_path == "a.py"
+    assert result.findings[0].verified is True
+    assert result.findings[0].confidence == 0.8
+    assert result.summary.title == "Review title"
+    assert result.summary.key_points == ["k1"]
+    assert llm.calls == 3  # generate -> verify -> aggregate

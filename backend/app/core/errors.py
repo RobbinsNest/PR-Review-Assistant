@@ -17,6 +17,7 @@ class ErrorCode(str, Enum):
     LLM_API_ERROR = "llm_api_error"
     TASK_CANCELLED = "task_cancelled"
     ANALYSIS_TOO_LARGE = "analysis_too_large"
+    NO_ANALYZABLE_FILES = "no_analyzable_files"
     NOT_FOUND = "not_found"
     RATE_LIMITED = "rate_limited"
 
@@ -34,6 +35,7 @@ ERROR_HTTP: dict[str, int] = {
     ErrorCode.LLM_API_ERROR.value: 502,
     ErrorCode.TASK_CANCELLED.value: 400,
     ErrorCode.ANALYSIS_TOO_LARGE.value: 413,
+    ErrorCode.NO_ANALYZABLE_FILES.value: 422,
     ErrorCode.NOT_FOUND.value: 404,
     ErrorCode.RATE_LIMITED.value: 429,
 }
