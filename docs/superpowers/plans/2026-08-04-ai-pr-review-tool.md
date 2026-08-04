@@ -41,6 +41,8 @@
 
 > ✅ **WT-4 (frontend) 完成**：T14-T16 + 集成修复 + 最终评审 fix wave 后 clean（后端 198 tests + 前端 40 tests）；PR #4 = feat/frontend（head 86f2f6c）。
 
+> ✅ **WT-5 (deploy-ci) 完成**：T17 Docker/CI/README/示例 PR 钉选；PR #5 = feat/deploy-ci（head d670190）。
+
 | Worktree | 分支 | PR | 内容（任务） | 依赖 |
 |---|---|---|---|---|
 | WT-1 | `feat/backend-core` | #1 | T1-T5：脚手架/模型/数据获取/上下文/LLM 客户端 | main |
@@ -899,6 +901,8 @@ async def test_allow_within_limit():
 ---
 
 ### Task T17: 分发、CI、文档与示例 PR 钉选（最后集成）
+
+> ✅ **完成** — commit `d670190`（2026-08-04，implementer: Euler；review: Aquinas ✅ Approved，0 Critical/Important）；Docker build 因本机无法访问 Docker Hub 未本地验证，交 CI docker-build job 验证
 
 **Files:**
 - Create: `backend/Dockerfile`（多阶段：`node:20-alpine` 构建前端 → `python:3.11-slim` 运行时，复制 dist 到 `backend/static`；`CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]`；FastAPI `StaticFiles` 挂载 `/` 服务前端）

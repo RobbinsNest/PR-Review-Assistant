@@ -130,3 +130,9 @@
 - **实现**：T14-T16 + 集成修复（result.files + history_id）+ 最终评审 fix wave 86f2f6c（nav shell/example_pr 配置源/历史分页 + 4 minors）；后端 198 + 前端 40 tests。
 - **评审链**：T14 Linnaeus ✅；T15 Huygens→Dirac→Maxwell ✅；T16 Russell ✅（2 后端缺口）→ Lovelace 修复→Socrates ✅；最终 Laplace（With fixes）→ Lagrange fix wave → Pauli ✅。
 - **教训**：跨层契约缺口（diff 数据在结果中、历史持久化 seam）与"示例 PR 单一来源"都是评审抓出的真实集成问题；前端按契约实现但后端没喂数据，等于白做——这类"谁提供数据"的契约必须在 SPEC/PLAN 显式列出。
+
+### WT-5 完成（deploy-ci）→ PR #5
+- **技能**：subagent-driven-development + finishing。
+- **实现**：T17 commit d670190（Euler）——Docker 多阶段/SPA 静态服务/docker-compose/GitHub Actions+GitLab CI（unit-test job）/README（含安全边界与分发说明）/env.example/示例 PR fixture（本仓库 PR #1）。
+- **评审**：Aquinas ✅ Approved（0 Critical/Important）；Docker build 本机无法访问 Docker Hub，交 CI 验证。
+- **状态**：全部 5 个 worktree（17 个 task）完成，PR #1-#4 已合并，PR #5 待合并。
