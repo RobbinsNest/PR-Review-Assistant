@@ -69,6 +69,12 @@ class HistoryStore:
         await self._conn.execute(_SCHEMA)
         await self._conn.commit()
 
+    async def close(self) -> None:
+        """Close the SQLite connection; safe when never initialized."""
+        if self._conn is not None:
+            await self._conn.close()
+            self._conn = None
+
     async def save(
         self,
         pr: PRInfo,

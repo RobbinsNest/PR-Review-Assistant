@@ -162,6 +162,12 @@ class GitHubFetcher:
             )
         return self._client
 
+    async def aclose(self) -> None:
+        """Close the shared AsyncClient, releasing its connection pool."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
     def _raise_for_status(self, response: httpx.Response, url: str) -> None:
         if response.is_success:
             return

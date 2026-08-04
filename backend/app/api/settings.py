@@ -8,16 +8,18 @@ Endpoints under ``/api/settings``:
 - ``POST /api/settings/llm/test`` -> minimal chat probe with the current config
 
 Security: no response ever contains the plaintext key, and the test probe
-reports only masked status / latency / a redacted error message.
+reports only masked status / latency / a redacted error message.  The probe
+is rate-limited per client IP (429 once the per-minute limit is exceeded).
 """
 
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.core.config import get_settings
 from app.core.errors import AppError
+from app.core.rate_limit import rate_limit_dependency
 from app.services.credentials import CredentialStore
 from app.services.llm_client import LLMClient
 
@@ -39,13 +41,19 @@ class _PingResponse(BaseModel):
 
 
 def _llm_settings_response(settings) -> dict:
-    """Build the masked status payload shared by GET/PUT/DELETE."""
+    """Build the masked status payload shared by GET/PUT/DELETE.
+
+    ``api_key_configured`` and ``api_key_masked`` use the same predicate: an
+    empty/whitespace key counts as unconfigured, so the two fields always
+    agree and an empty value never renders a mask.
+    """
     key = CredentialStore.get_llm_api_key()
+    configured = bool(key)
     return {
         "base_url": settings.llm_base_url,
         "model": settings.llm_model,
-        "api_key_configured": key is not None,
-        "api_key_masked": CredentialStore.mask(key) if key else None,
+        "api_key_configured": configured,
+        "api_key_masked": CredentialStore.mask(key) if configured else None,
     }
 
 
@@ -75,7 +83,7 @@ def clear_llm_settings() -> dict:
     return _llm_settings_response(get_settings())
 
 
-@router.post("/llm/test")
+@router.post("/llm/test", dependencies=[Depends(rate_limit_dependency)])
 async def test_llm_settings() -> dict:
     """Probe connectivity with the current config; never logs or echoes the key."""
     settings = get_settings()
@@ -84,13 +92,13 @@ async def test_llm_settings() -> dict:
         return {"ok": False, "latency_ms": 0, "error": "LLM API key is not configured"}
 
     started = time.monotonic()
+    client = LLMClient(
+        base_url=settings.llm_base_url,
+        api_key=api_key,
+        model=settings.llm_model,
+        timeout=settings.llm_timeout_sec,
+    )
     try:
-        client = LLMClient(
-            base_url=settings.llm_base_url,
-            api_key=api_key,
-            model=settings.llm_model,
-            timeout=settings.llm_timeout_sec,
-        )
         await client.chat_json(
             [{"role": "user", "content": "ping"}],
             _PingResponse,
@@ -110,3 +118,6 @@ async def test_llm_settings() -> dict:
             "latency_ms": int((time.monotonic() - started) * 1000),
             "error": "unexpected error during connectivity test",
         }
+    finally:
+        # Per-request client: release the connection pool immediately.
+        await client.aclose()

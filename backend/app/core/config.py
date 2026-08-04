@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     example_pr: str = "owner/repo/pull/1"
     database_path: str = "data/analyses.db"
     rate_limit_per_min: int = 10
+    #: Comma-separated CORS allowlist; empty means same-origin only.
+    cors_origins: str = ""
 
     def api_key(self) -> str | None:
         """Return the LLM API key from the configured environment variable.

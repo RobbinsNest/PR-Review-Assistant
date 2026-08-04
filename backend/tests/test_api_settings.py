@@ -109,6 +109,9 @@ def test_test_endpoint_succeeds_and_uses_current_config(client, keyring_stub, mo
             captured["temperature"] = temperature
             return response_schema(ok=True)
 
+        async def aclose(self) -> None:
+            pass
+
     monkeypatch.setattr("app.api.settings.LLMClient", FakeLLMClient)
     client.put("/api/settings/llm", json={"api_key": "sk-abcdef1234"})
 
@@ -144,6 +147,9 @@ def test_test_endpoint_reports_provider_error_and_never_echoes_key(
         async def chat_json(self, messages, response_schema, temperature=0.2):
             raise AppError("llm_api_error", message="LLM API error 401: Invalid API key")
 
+        async def aclose(self) -> None:
+            pass
+
     monkeypatch.setattr("app.api.settings.LLMClient", FailingLLMClient)
     client.put("/api/settings/llm", json={"api_key": "sk-bad-secret-1234"})
 
@@ -153,3 +159,12 @@ def test_test_endpoint_reports_provider_error_and_never_echoes_key(
     assert body["ok"] is False
     assert body["error"] is not None
     assert "sk-bad-secret-1234" not in r.text
+
+def test_empty_key_treated_as_unconfigured(client, keyring_stub, tmp_path, monkeypatch):
+    """Empty stored key: api_key_configured and api_key_masked agree (unset)."""
+    monkeypatch.setattr(CredentialStore, "dotenv_path", tmp_path / ".env")
+    (tmp_path / ".env").write_text("LLM_API_KEY=\n", encoding="utf-8")
+    r = client.get("/api/settings/llm")
+    body = r.json()
+    assert body["api_key_configured"] is False
+    assert body["api_key_masked"] is None
