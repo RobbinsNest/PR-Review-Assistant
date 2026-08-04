@@ -124,3 +124,9 @@
 - **实现**：结果看板/历史/设置 commit b64f5d4（Boole，21 tests）。
 - **评审**：Russell ✅ Approved（前端正确），但发现 2 个**后端契约缺口**（Important）：(A) AnalysisResult 无 per-file diff → diff 高亮空转；(B) 生产流程从不调用 HistoryStore.save → 历史/导出永远为空。→ 集成 fix wave（Lovelace）关闭两个 seam（result.files + meta.history_id）。
 - **教训**：前端按契约实现但后端 seam 未接通——"每文件 diff 高亮"与"历史+导出"都是核心 US，缺了它前端白做；跨层契约必须在 PLAN 里显式列出"谁填 result.files / meta.history_id"。
+
+### WT-4 完成（frontend）→ PR #4
+- **技能**：subagent-driven-development + finishing。
+- **实现**：T14-T16 + 集成修复（result.files + history_id）+ 最终评审 fix wave 86f2f6c（nav shell/example_pr 配置源/历史分页 + 4 minors）；后端 198 + 前端 40 tests。
+- **评审链**：T14 Linnaeus ✅；T15 Huygens→Dirac→Maxwell ✅；T16 Russell ✅（2 后端缺口）→ Lovelace 修复→Socrates ✅；最终 Laplace（With fixes）→ Lagrange fix wave → Pauli ✅。
+- **教训**：跨层契约缺口（diff 数据在结果中、历史持久化 seam）与"示例 PR 单一来源"都是评审抓出的真实集成问题；前端按契约实现但后端没喂数据，等于白做——这类"谁提供数据"的契约必须在 SPEC/PLAN 显式列出。

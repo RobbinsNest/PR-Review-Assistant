@@ -39,6 +39,8 @@
 
 > ✅ **WT-3 (history-settings) 完成**：T10-T13 全部通过（132 tests），最终评审 fix 后 clean；PR #3 = feat/history-settings（head 3163f8e）。
 
+> ✅ **WT-4 (frontend) 完成**：T14-T16 + 集成修复 + 最终评审 fix wave 后 clean（后端 198 tests + 前端 40 tests）；PR #4 = feat/frontend（head 86f2f6c）。
+
 | Worktree | 分支 | PR | 内容（任务） | 依赖 |
 |---|---|---|---|---|
 | WT-1 | `feat/backend-core` | #1 | T1-T5：脚手架/模型/数据获取/上下文/LLM 客户端 | main |
