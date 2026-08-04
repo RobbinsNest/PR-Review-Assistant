@@ -52,10 +52,14 @@ _cors_origins = [
     origin.strip() for origin in get_settings().cors_origins.split(",") if origin.strip()
 ]
 if _cors_origins:
+    # Browsers reject a "*" origin combined with allow_credentials=True (a
+    # credentialed wildcard request is never permitted), so when a wildcard
+    # origin is configured we disable credentials instead of refusing to
+    # start. Explicit origins keep credential support.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins,
-        allow_credentials=True,
+        allow_credentials="*" not in _cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )

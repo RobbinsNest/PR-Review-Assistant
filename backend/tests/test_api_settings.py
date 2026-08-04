@@ -168,3 +168,54 @@ def test_empty_key_treated_as_unconfigured(client, keyring_stub, tmp_path, monke
     body = r.json()
     assert body["api_key_configured"] is False
     assert body["api_key_masked"] is None
+
+@pytest.mark.parametrize(
+    "bad_url",
+    [
+        "http://example.com",            # insecure scheme
+        "ftp://api.example.com",         # non-https scheme
+        "https://127.0.0.1",             # loopback
+        "https://127.0.0.1:8080/v1",     # loopback with port/path
+        "https://localhost",             # loopback hostname
+        "https://0.0.0.0",               # unspecified address
+        "https://10.0.0.5",              # RFC1918 private
+        "https://172.16.0.1",            # RFC1918 private
+        "https://192.168.1.10",          # RFC1918 private
+        "https://169.254.169.254",       # link-local (metadata endpoint)
+        "https://internal",              # single-label hostname
+        "https://user:pass@example.com", # embedded credentials
+    ],
+)
+def test_put_rejects_insecure_or_private_base_url(client, keyring_stub, bad_url):
+    """Key-exfiltration guard: non-https / private / local URLs are rejected."""
+    r = client.put("/api/settings/llm", json={"base_url": bad_url})
+    assert r.status_code == 400
+    body = r.json()
+    assert body["error"]["code"] == "invalid_base_url"
+    assert body["error"]["message"]
+    # The rejected value must not have mutated the in-memory config.
+    assert client.get("/api/settings/llm").json()["base_url"] == "https://api.deepseek.com"
+
+
+def test_put_accepts_https_public_base_url(client, keyring_stub):
+    """A public https:// base_url is accepted and stored in memory."""
+    r = client.put("/api/settings/llm", json={"base_url": "https://example.com"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["base_url"] == "https://example.com"
+    assert body["api_key_configured"] is False
+
+
+def test_test_endpoint_unchanged_after_rejected_base_url(client, keyring_stub):
+    """A rejected base_url leaves config untouched; test probe behavior holds."""
+    r = client.put("/api/settings/llm", json={"base_url": "http://evil.example.com"})
+    assert r.status_code == 400
+    body = client.get("/api/settings/llm").json()
+    assert body["base_url"] == "https://api.deepseek.com"
+    assert body["model"] == "deepseek-v4-flash"
+
+    r = client.post("/api/settings/llm/test")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is False
+    assert body["error"] == "LLM API key is not configured"

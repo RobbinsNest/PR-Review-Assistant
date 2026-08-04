@@ -168,4 +168,3 @@ class CredentialStore:
                 continue
             out.append(line)
         cls.dotenv_path.write_text("\n".join(out) + "\n", encoding="utf-8")
-
