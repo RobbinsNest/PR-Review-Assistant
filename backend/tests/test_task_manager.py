@@ -252,3 +252,73 @@ async def test_unsubscribe_removes_queue_from_subscriber_set():
     tm.unsubscribe(task_id, q1)
     assert q1 not in tm._queues[task_id]
     assert q2 in tm._queues[task_id]
+
+
+# ---------------------------------------------------------------------------
+# T16 integration fix wave: history persistence on successful runs
+# ---------------------------------------------------------------------------
+
+
+async def test_successful_task_saves_history_with_history_id(tmp_path):
+    from app.services.history_store import HistoryStore
+
+    store = HistoryStore(str(tmp_path / "analyses.db"))
+    await store.init()
+    tm = TaskManager()
+    task_id = tm.create(
+        "o/r/pull/1", None, FakeEngine(), FakeFetcher(), history_store=store
+    )
+    try:
+        state = await wait_terminal(tm, task_id)
+        assert state["status"] == "succeeded"
+        assert state["result"] is not None
+        history_id = state["result"].meta["history_id"]
+        assert isinstance(history_id, str) and history_id
+        # The saved record matches the task's PR and carries a non-secret
+        # config snapshot (model/base_url only).
+        rows = await store.list()
+        assert len(rows) == 1
+        assert rows[0]["id"] == history_id
+        assert rows[0]["pr_number"] == 1
+        assert rows[0]["status"] == "succeeded"
+        assert set(rows[0]["config_snapshot"]) == {"model", "base_url"}
+        assert rows[0]["duration_ms"] >= 0
+        # The replayed done event exposes history_id too (SSE consumers read
+        # it from the done event result).
+        queue = tm.subscribe(task_id)
+        event = await asyncio.wait_for(queue.get(), timeout=2)
+        assert event["type"] == "done"
+        assert event["result"]["meta"]["history_id"] == history_id
+    finally:
+        await store.close()
+
+
+async def test_task_without_history_store_still_succeeds():
+    tm = TaskManager()
+    task_id = tm.create("o/r/pull/1", None, FakeEngine(), FakeFetcher())
+    state = await wait_terminal(tm, task_id)
+    assert state["status"] == "succeeded"
+    assert state["result"] is not None
+    assert "history_id" not in state["result"].meta
+
+
+async def test_failed_task_is_not_saved(tmp_path):
+    from app.services.history_store import HistoryStore
+
+    store = HistoryStore(str(tmp_path / "analyses.db"))
+    await store.init()
+
+    class BoomEngine:
+        async def run_analysis(self, ctx, progress=None):
+            raise AppError("llm_api_error", message="upstream failed")
+
+    tm = TaskManager()
+    try:
+        task_id = tm.create(
+            "o/r/pull/1", None, BoomEngine(), FakeFetcher(), history_store=store
+        )
+        state = await wait_terminal(tm, task_id)
+        assert state["status"] == "failed"
+        assert await store.count() == 0
+    finally:
+        await store.close()
