@@ -849,6 +849,8 @@ async def test_allow_within_limit():
 
 ### Task T15: 首页 + 进度页（SSE）
 
+> ✅ **完成** — commits `69afe4d`+`3eb55d9`（2026-08-04，implementer: Hypatia，fix: Dirac；review: Huygens 1 Important（stage 徽章逻辑倒置）→ 修复 → Maxwell 复核通过）
+
 **Files:**
 - Create: `frontend/src/pages/HomePage.tsx`（完整）、`frontend/src/pages/ProgressPage.tsx`
 - Create: `frontend/src/components/ProgressBar.tsx`, `frontend/src/components/StageBadge.tsx`

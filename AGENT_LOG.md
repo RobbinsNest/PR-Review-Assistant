@@ -112,3 +112,9 @@
 - **实现**：前端脚手架 commit a586173（Plato）——Vite+React18+TS+Tailwind、api client（9 个函数与后端契约逐字段核对）、SSE client、DESIGN.md（Open Design 契约，中文）。
 - **评审**：Linnaeus ✅ Approved（minor：ApiError 携带 code、SSE 404 终止 → 折入 T15）。
 - **环境**：npm.ps1 被执行策略禁用 → 用 npm.cmd；沙箱 D:\ 写入在 escalation 后受限 → subagent 用 escalation 完成写入/构建。
+
+### T15 完成（WT-4 frontend）
+- **技能**：subagent-driven-development。
+- **实现**：HomePage + ProgressPage（SSE）commit 69afe4d（Hypatia）；fix 3eb55d9（Dirac）。
+- **评审**：Huygens 1 Important（stage 徽章逻辑倒置：完成阶段标 pending、未来标 done）→ 修复 → Maxwell 复核 ✅。
+- **教训**：进度页徽章状态是最容易被写反的 UI 逻辑；补组件测试后此类 bug 不会再溜过。
