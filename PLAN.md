@@ -524,6 +524,8 @@ async def test_stage2_verdicts_applied():
 
 ### Task T8: 分析引擎 Stage 3 汇总 + 编排器（全流程）
 
+> ✅ **完成** — commit `6f9d64c`（2026-08-04，implementer: Godel；review: Avicenna ✅ Approved）
+
 **Files:**
 - Modify: `backend/app/services/analysis_engine.py`
 - Test: `backend/tests/test_analysis_engine.py`（追加）
@@ -752,6 +754,8 @@ def test_get_returns_none_when_unset(monkeypatch):
 ---
 
 ### Task T12: 限流 + 错误映射 + 全后端装配
+
+> ✅ **完成** — commit `9f9386f`（2026-08-04，implementer: Hume；review: James ✅ Approved；含 T10/T11 评审折入：aclose/close/test_cli/日志 grep-assert）
 
 **Files:**
 - Create: `backend/app/core/rate_limit.py`

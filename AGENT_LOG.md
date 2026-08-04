@@ -82,3 +82,9 @@
 - **技能**：subagent-driven-development。
 - **实现**：stage2 校验 commit 6857781（Newton）；折入 T6 评审项（真实变更行判定/文件名校验/病态行号收敛）；修正 brief 草案测试顺序矛盾（已记录）。
 - **评审**：Copernicus ✅ Approved（minor：verify 消息缺 truncated 注记、true_changed_lines 多 hunk 测试 → 折入 T8）。
+
+### T8/T12 完成（WT-2/WT-3 并行）
+- **技能**：subagent-driven-development。
+- **实现**：T8 stage3+编排器 commit 6f9d64c（Godel，100 tests）；T12 限流+装配 commit 9f9386f（Hume，106 tests，含 aclose/close/test_cli/日志 grep-assert）。
+- **评审**：T8 → Avicenna ✅；T12 → James ✅（minor 折入 T9/T13）。
+- **注意**：WT-2 与 WT-3 都在改 backend/app/main.py —— 已指示 T9/T13 各自只加自己的 router 并标注 seam，合并时人工调和。
