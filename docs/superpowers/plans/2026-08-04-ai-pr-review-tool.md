@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- 后端 Python **3.11**（禁止 3.12+ 专有语法）。
+- 后端目标 **Python 3.11**：Docker/CI 固定 `python:3.11-slim`；本地开发兼容 3.11+（本机为 3.14），但禁止 3.12+ 专有语法，`pyproject.toml` 用 `requires-python = ">=3.11"`。
 - LLM 走 **OpenAI 兼容协议**，`base_url`/`model`/`api_key` 可配；默认 `base_url=https://api.deepseek.com`、`model=deepseek-v4-flash`。LLM 客户端必须封装：超时（默认 60s）、重试（1 次）、JSON 输出经 pydantic 校验、解析失败追加修复提示重试 1 次。
 - **凭据铁律**：key/token 绝不硬编码、绝不提交进 git、绝不写日志/终端 history。LLM key 首选 OS keyring（`keyring` 库），`.env`（gitignored）兜底；Web/CLI 只显示掩码（`sk-****1234`）。GitHub token 仅会话内存、请求转发后即弃、不落库。
 - 固定枚举：`category ∈ {bug, security, performance, maintainability, style}`；`severity ∈ {critical, major, minor, nit}`；`confidence ∈ [0,1]`。所有 finding 的 `line_start/line_end` 必须落在变更行范围内（校验阶段强制）。
@@ -133,7 +133,7 @@ def test_health(client):
 
 - [ ] **Step 2: 运行确认失败** — `pytest backend/tests/test_health.py -v` 期望：`ModuleNotFoundError`（无 app 包）。
 - [ ] **Step 3: 实现脚手架**
-  - `pyproject.toml`：`requires-python = ">=3.11,<3.12"`；依赖 `fastapi`、`uvicorn[standard]`、`httpx`、`pydantic>=2`、`pydantic-settings`、`aiosqlite`、`keyring`、`python-multipart`（如需）；dev 依赖 `pytest`、`pytest-asyncio`、`respx`。
+  - `pyproject.toml`：`requires-python = ">=3.11"`（Docker/CI 用 3.11 镜像）；依赖 `fastapi`、`uvicorn[standard]`、`httpx`、`pydantic>=2`、`pydantic-settings`、`aiosqlite`、`keyring`、`python-multipart`（如需）；dev 依赖 `pytest`、`pytest-asyncio`、`respx`。
   - `core/config.py`：如上 Settings；`get_settings()` 懒加载单例。
   - `core/logging.py`：`logging.basicConfig` 结构化格式（JSON 可选，至少含时间/级别/消息），并加 `redact()` 帮助函数。
   - `core/errors.py`：`AppError` + 错误码枚举（`invalid_url/repo_not_found/pull_not_found/private_repo_requires_token/github_rate_limited/llm_timeout/llm_json_parse_failed/task_cancelled/analysis_too_large`）。

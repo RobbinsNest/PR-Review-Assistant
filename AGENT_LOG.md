@@ -14,3 +14,7 @@
 - **问题**：本机无法连接 `github.com:443`（curl 返回 000），但 `api.github.com` 可通（200）；无代理配置；`gh` CLI 未安装。
 - **决策**：本地 git 仅用于 worktree 隔离与开发；所有远程操作（建分支、镜像 commit、开/合 PR）经 GitHub App 连接器（走 api.github.com）完成。GitHub 仓库仍获得完整 commit + PR 历史。
 - **教训**：在受限网络环境中，先验证 push 通路再设计执行流程，避免中途卡壳。
+
+### T-0 环境适配（人工决策：Python 版本）
+- **问题**：本机默认 Python 3.14；Python 3.11 安装到用户目录后沙箱拒绝执行（仅可经 escalation 运行），本地 TDD 不便。
+- **决策（用户确认"下不下都行"）**：本地开发用 3.14 跑测试（`requires-python = ">=3.11"`）；**Docker 与 CI 固定 `python:3.11-slim`**，发行目标仍为 3.11。SPEC/PLAN 已同步更新。

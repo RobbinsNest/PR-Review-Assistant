@@ -163,7 +163,7 @@ PR（Pull Request）评审是研发流程中最耗时、质量波动最大的环
 └───────────────┬──────────────────────────────┬─────────────────┘
                 │ REST (JSON)                  │ SSE
 ┌───────────────▼──────────────────────────────▼─────────────────┐
-│  FastAPI 后端（单进程，Python 3.11）                              │
+│  FastAPI 后端（单进程，目标 Python 3.11）                          │
 │  ├─ API 路由层：analyze / tasks / history / settings / health   │
 │  ├─ task_manager：asyncio 任务注册表 + 状态机 + SSE 事件          │
 │  ├─ analysis_engine：编排（generate → verify → aggregate）        │
@@ -259,7 +259,8 @@ PR（Pull Request）评审是研发流程中最耗时、质量波动最大的环
 ## 8. 技术选型与理由
 
 ### 8.1 后端
-**Python 3.11 + FastAPI + httpx + pydantic v2 + aiosqlite + uvicorn**
+**Python 3.11（目标）+ FastAPI + httpx + pydantic v2 + aiosqlite + uvicorn**
+- Python 版本策略：**Docker 镜像与 CI 固定 `python:3.11-slim`**（发行目标为 3.11）；本地开发兼容 3.11+（本机环境允许，避免本地环境差异阻塞 TDD）。
 - 异步原生，适合并发调度 LLM/GitHub 调用；
 - pydantic v2 直接承担 LLM JSON 输出的 schema 校验（两阶段管线的地基）；
 - aiosqlite 轻量持久化，免去外部数据库依赖；
