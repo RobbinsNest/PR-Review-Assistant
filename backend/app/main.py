@@ -4,11 +4,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
+from app.api.settings import router as settings_router
 from app.core.errors import AppError
 
 app = FastAPI(title="PR Review Assistant")
 
 app.include_router(health_router)
+app.include_router(settings_router)
 
 
 @app.exception_handler(AppError)
