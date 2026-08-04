@@ -136,3 +136,8 @@
 - **实现**：T17 commit d670190（Euler）——Docker 多阶段/SPA 静态服务/docker-compose/GitHub Actions+GitLab CI（unit-test job）/README（含安全边界与分发说明）/env.example/示例 PR fixture（本仓库 PR #1）。
 - **评审**：Aquinas ✅ Approved（0 Critical/Important）；Docker build 本机无法访问 Docker Hub，交 CI 验证。
 - **状态**：全部 5 个 worktree（17 个 task）完成，PR #1-#4 已合并，PR #5 待合并。
+
+### 🏁 项目完成（全部 5 PR 合并）
+- **最终验证（merged main）**：后端 pytest 203 passed；前端 vitest 40 passed（10 files）+ build ✅；服务器 smoke：/healthz 200、/ 200（SPA）、/api/settings/llm 200、/history 200（SPA fallback）。
+- **PR 汇总**：#1 backend-core（T1-T5）、#2 analysis-engine（T6-T9）、#3 history-settings（T10-T13）、#4 frontend（T14-T16+集成修复）、#5 deploy-ci（T17）。
+- **遗留事项（学生/用户）**：REFLECTION.md 为模板，须学生本人撰写（禁止 AI 代写）；公网部署 URL 需用户选定平台并提供凭据（Docker 一键可部署，README 已写明）；GitHub Actions 首次 push 后应确认 unit-test/docker-build 通过（最后一次 CI 需 pass）。

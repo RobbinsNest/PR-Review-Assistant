@@ -43,6 +43,8 @@
 
 > ✅ **WT-5 (deploy-ci) 完成**：T17 Docker/CI/README/示例 PR 钉选；PR #5 = feat/deploy-ci（head d670190）。
 
+> 🏁 **全部完成**：5 个 worktree / 5 个 PR / 17 个 task 全部合并到 main。合并后验证：后端 pytest **203 passed**、前端 vitest **40 passed** + build ✅、服务器 smoke（/healthz、SPA、/api、fallback）全部 200。
+
 | Worktree | 分支 | PR | 内容（任务） | 依赖 |
 |---|---|---|---|---|
 | WT-1 | `feat/backend-core` | #1 | T1-T5：脚手架/模型/数据获取/上下文/LLM 客户端 | main |
