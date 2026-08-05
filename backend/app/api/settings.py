@@ -188,8 +188,12 @@ async def test_llm_settings() -> dict:
         timeout=settings.llm_timeout_sec,
     )
     try:
+        # The probe uses response_format={"type":"json_object"}, which
+        # DeepSeek (and other OpenAI-compatible providers) only accepts when
+        # the prompt mentions "json" ? the ping content must include it or the
+        # provider rejects the request with HTTP 400.
         await client.chat_json(
-            [{"role": "user", "content": "ping"}],
+            [{"role": "user", "content": 'Reply with JSON only, e.g. {"ok": true}'}],
             _PingResponse,
             temperature=0,
         )

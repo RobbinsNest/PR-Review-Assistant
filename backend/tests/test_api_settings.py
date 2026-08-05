@@ -127,7 +127,13 @@ def test_test_endpoint_succeeds_and_uses_current_config(client, keyring_stub, mo
     assert captured["base_url"] == "https://api.deepseek.com"
     assert captured["model"] == "deepseek-v4-flash"
     assert captured["api_key"] == "sk-abcdef1234"
-    assert captured["messages"] == [{"role": "user", "content": "ping"}]
+    # The probe uses response_format={"type":"json_object"}, which DeepSeek
+    # and other OpenAI-compatible providers only allow when the prompt
+    # mentions "json" ? the ping content must satisfy that precondition or
+    # the provider rejects it with HTTP 400 (regression guard).
+    assert len(captured["messages"]) == 1
+    ping_content = captured["messages"][0]["content"]
+    assert "json" in ping_content.lower()
     assert "sk-abcdef1234" not in r.text
 
 

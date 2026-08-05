@@ -141,3 +141,9 @@
 - **最终验证（merged main）**：后端 pytest 203 passed；前端 vitest 40 passed（10 files）+ build ✅；服务器 smoke：/healthz 200、/ 200（SPA）、/api/settings/llm 200、/history 200（SPA fallback）。
 - **PR 汇总**：#1 backend-core（T1-T5）、#2 analysis-engine（T6-T9）、#3 history-settings（T10-T13）、#4 frontend（T14-T16+集成修复）、#5 deploy-ci（T17）。
 - **遗留事项（学生/用户）**：REFLECTION.md 为模板，须学生本人撰写（禁止 AI 代写）；公网部署 URL 需用户选定平台并提供凭据（Docker 一键可部署，README 已写明）；GitHub Actions 首次 push 后应确认 unit-test/docker-build 通过（最后一次 CI 需 pass）。
+
+### 修复：LLM 连通性测试 400（用户实测发现）
+- **现象**：设置页"测试连通性"报 `LLM API error 400: Prompt must contain the word 'json' ... response_format json_object`。
+- **根因**（systematic-debugging）：`/api/settings/llm/test` 用 `chat_json` 发送探测 `"ping"`，而 `chat_json` 总带 `response_format={"type":"json_object"}`；DeepSeek 要求 prompt 含 "json" 字样才能用 json_object → 默认配置下连通性测试必然失败。分析调用不受影响（prompt 均含"JSON"）。
+- **修复**：探测内容改为 `Reply with JSON only, e.g. {"ok": true}`（含 "json"，满足供应商前置条件）；TDD 红→绿，settings 23 tests + 全量 203 passed。
+- **教训**：连通性探测是"真请求"，必须满足供应商对 json_object 的 prompt 前置条件；这类集成细节在 mock 测试中看不出来，真实验证（用户点击）才暴露。
