@@ -3,44 +3,52 @@
 @tailwind utilities;
 
 /*
- * Design tokens for the PR Review Assistant.
+ * Design tokens for the PR Review Assistant — CYBERPUNK THEME.
  *
  * This file is the single source of truth for the design contract (see
  * DESIGN.md at the repo root). Tailwind consumes these variables through
  * tailwind.config.js (theme.extend). Color variables are space-separated
  * RGB triplets so `rgb(var(--x) / <alpha-value>)` supports opacity.
+ *
+ * Theme: classic neon night-city (dark tool UI, restrained neon cyan /
+ * magenta accents). All tokens are semantic — components keep their
+ * classes, only the tokens change.
  */
 
 :root {
-  /* ---- Brand (primary) ---- */
-  --color-primary: 59 130 246; /* blue-500 */
-  --color-primary-strong: 37 99 235; /* blue-600 */
-  --color-primary-weak: 239 246 255; /* blue-50 */
+  /* ---- Brand (primary: neon cyan) ---- */
+  --color-primary: 34 211 238; /* cyan-400  #22D3EE */
+  --color-primary-strong: 6 182 212; /* cyan-500  #06B6D4 */
+  --color-primary-weak: 16 58 78; /* dark cyan tint for selected/active bg */
 
-  /* ---- Surfaces ---- */
-  --color-surface: 255 255 255; /* white */
-  --color-surface-subtle: 248 250 252; /* slate-50 */
+  /* ---- Accent (neon magenta) ---- */
+  --color-accent: 244 114 182; /* pink-400  #F472B6 */
+  --color-accent-strong: 236 72 153; /* pink-500  #EC4899 */
 
-  /* ---- Text (ink) ---- */
-  --color-ink: 15 23 42; /* slate-900 */
-  --color-ink-secondary: 71 85 105; /* slate-600 */
-  --color-ink-muted: 148 163 184; /* slate-400 */
+  /* ---- Surfaces (near-black with blue cast) ---- */
+  --color-surface: 18 26 43; /* #121A2B panels/cards/inputs */
+  --color-surface-subtle: 10 14 26; /* #0A0E1A page background */
+
+  /* ---- Text (ink: light) ---- */
+  --color-ink: 230 237 247; /* #E6EDF7 main text */
+  --color-ink-secondary: 159 176 201; /* #9FB0C9 secondary */
+  --color-ink-muted: 100 116 139; /* #64748B placeholder/meta */
 
   /* ---- Borders ---- */
-  --color-line: 226 232 240; /* slate-200 */
-  --color-line-strong: 203 213 225; /* slate-300 */
+  --color-line: 31 42 68; /* #1F2A44 default border */
+  --color-line-strong: 51 65 94; /* #33415E emphasis border */
 
-  /* ---- Semantic status ---- */
-  --color-success: 22 163 74; /* green-600 */
-  --color-warning: 217 119 6; /* amber-600 */
-  --color-error: 220 38 38; /* red-600 */
-  --color-info: 37 99 235; /* blue-600 */
+  /* ---- Semantic status (lightened for dark bg) ---- */
+  --color-success: 52 211 153; /* emerald-400 #34D399 */
+  --color-warning: 251 191 36; /* amber-400   #FBBF24 */
+  --color-error: 248 113 113; /* red-400     #F87171 */
+  --color-info: 34 211 238; /* cyan-400    #22D3EE */
 
   /* ---- Finding severity ---- */
-  --color-severity-critical: 220 38 38; /* red-600 */
-  --color-severity-major: 234 88 12; /* orange-600 */
-  --color-severity-minor: 202 138 4; /* yellow-600 */
-  --color-severity-nit: 100 116 139; /* slate-500 */
+  --color-severity-critical: 248 113 113; /* red-400    #F87171 */
+  --color-severity-major: 251 146 60; /* orange-400 #FB923C */
+  --color-severity-minor: 251 191 36; /* amber-400  #FBBF24 */
+  --color-severity-nit: 148 163 184; /* slate-400  #94A3B8 */
 
   /* ---- Spacing (4px base scale) ---- */
   --space-1: 4px;
@@ -63,4 +71,48 @@
 
 body {
   @apply bg-surface-subtle text-ink antialiased;
+  /* Subtle neon ambient: a faint cyan glow bleeding from the top, kept far
+     below readability thresholds. */
+  background-image: radial-gradient(
+    1100px 520px at 50% -12%,
+    rgb(var(--color-primary) / 0.09),
+    transparent 70%
+  );
+  background-repeat: no-repeat;
+}
+
+/* Selection + scrollbars: quiet neon, stays functional. */
+::selection {
+  background: rgb(var(--color-primary) / 0.32);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-primary) / 0.45) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgb(var(--color-surface-subtle));
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-primary) / 0.4);
+  border-radius: var(--radius-full);
+}
+
+/* Restrained neon glow utilities (cyberpunk accents, interactive only).
+   Applied on top of existing semantic classes — never on body text. */
+@layer utilities {
+  .glow-cyan {
+    box-shadow:
+      0 0 0 1px rgb(var(--color-primary) / 0.35),
+      0 0 12px rgb(var(--color-primary) / 0.3);
+  }
+  .glow-magenta {
+    box-shadow:
+      0 0 0 1px rgb(var(--color-accent) / 0.35),
+      0 0 12px rgb(var(--color-accent) / 0.3);
+  }
 }

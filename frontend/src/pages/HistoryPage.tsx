@@ -107,7 +107,7 @@ export default function HistoryPage() {
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="mt-3 rounded-md bg-primary px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-primary-strong"
+            className="mt-3 rounded-md bg-primary glow-cyan px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-primary-strong"
           >
             去分析
           </button>

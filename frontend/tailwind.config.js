@@ -13,6 +13,10 @@ export default {
           strong: "rgb(var(--color-primary-strong) / <alpha-value>)",
           weak: "rgb(var(--color-primary-weak) / <alpha-value>)",
         },
+        accent: {
+          DEFAULT: "rgb(var(--color-accent) / <alpha-value>)",
+          strong: "rgb(var(--color-accent-strong) / <alpha-value>)",
+        },
         surface: {
           DEFAULT: "rgb(var(--color-surface) / <alpha-value>)",
           subtle: "rgb(var(--color-surface-subtle) / <alpha-value>)",

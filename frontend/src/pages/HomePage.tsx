@@ -155,7 +155,7 @@ export default function HomePage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md bg-primary glow-cyan px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submitting ? "提交中…" : "开始分析"}
               </button>

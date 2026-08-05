@@ -225,7 +225,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={saving || testing}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md bg-primary glow-cyan px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {saving ? "保存中…" : "保存"}
               </button>

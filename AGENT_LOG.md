@@ -147,3 +147,9 @@
 - **根因**（systematic-debugging）：`/api/settings/llm/test` 用 `chat_json` 发送探测 `"ping"`，而 `chat_json` 总带 `response_format={"type":"json_object"}`；DeepSeek 要求 prompt 含 "json" 字样才能用 json_object → 默认配置下连通性测试必然失败。分析调用不受影响（prompt 均含"JSON"）。
 - **修复**：探测内容改为 `Reply with JSON only, e.g. {"ok": true}`（含 "json"，满足供应商前置条件）；TDD 红→绿，settings 23 tests + 全量 203 passed。
 - **教训**：连通性探测是"真请求"，必须满足供应商对 json_object 的 prompt 前置条件；这类集成细节在 mock 测试中看不出来，真实验证（用户点击）才暴露。
+
+### 前端改为赛博朋克主题（不改功能）
+- **设计**（brainstorming 确认方向 A 经典霓虹夜城）：DESIGN.md 契约同步更新；token 层（theme.css）+ tailwind accent token + 两个辉光工具类；组件仅加辉光类。
+- **改动**：theme.css（暗色霓虹青/品红全套 token + body 氛围 + 滚动条/选区 + glow-cyan/glow-magenta）；tailwind.config.js（暴露 accent）；DESIGN.md（色彩/层级/组件/Do&Don't 同步）；HomePage/SettingsPage/HistoryPage/router/ProgressBar/NavBar 加辉光类（纯样式）。
+- **验证**：npm run build ✅（CSS 16.14 kB，bundle 含新 token 与 glow）；npm test 40/40 ✅（断言的是语义类，天然不敏感）；后端未动。
+- **说明**：截图验证尝试被沙箱拦截（Playwright 无法访问 Codex 应用数据目录），改用构建产物内容核验替代。

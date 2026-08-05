@@ -26,7 +26,7 @@ function NotFound() {
       <p className="mt-2 text-sm text-ink-secondary">你访问的页面不存在或已被移除。</p>
       <Link
         to="/"
-        className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-primary-strong"
+        className="mt-4 rounded-md bg-primary glow-cyan px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-primary-strong"
       >
         返回首页
       </Link>

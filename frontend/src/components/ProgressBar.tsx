@@ -29,7 +29,7 @@ export default function ProgressBar({ label, done, total }: ProgressBarProps) {
         className="h-2 w-full overflow-hidden rounded-full bg-line"
       >
         <div
-          className="h-full rounded-full bg-primary transition-[width] duration-300"
+          className="h-full rounded-full bg-primary glow-cyan transition-[width] duration-300"
           style={{ width: `${percent}%` }}
         />
       </div>

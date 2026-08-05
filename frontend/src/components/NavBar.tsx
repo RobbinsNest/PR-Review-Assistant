@@ -3,7 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 /** Shared class for the primary nav links (active link highlighted). */
 function linkClass({ isActive }: { isActive: boolean }): string {
   return `rounded-md px-2 py-1 text-sm transition-colors ${
-    isActive ? "bg-primary/10 font-medium text-primary" : "text-ink-secondary hover:text-ink"
+    isActive ? "glow-magenta bg-primary/10 font-medium text-primary" : "text-ink-secondary hover:text-ink"
   }`;
 }
 
